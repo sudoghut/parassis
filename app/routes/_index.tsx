@@ -10,7 +10,7 @@ import {
 
 export const meta: MetaFunction = () => {
   return [
-    { title: "Parassis Reader" },
+    { title: "Parassis" },
     { name: "description", content: "Welcome to Remix!" },
   ];
 };
@@ -29,7 +29,7 @@ export default function Index() {
     <div className="flex flex-row items-center justify-center p-4">
       Content
     </div>
-    <div className="flex flex-row items-center justify-center p-4 w-[10%] border-b self-center">
+    <div className="flex flex-row items-center justify-center p-4 w-[30%] border-b self-center">
     </div>
     <div className="flex flex-row items-center p-4">
       <div className="flex items-center space-x-4">
