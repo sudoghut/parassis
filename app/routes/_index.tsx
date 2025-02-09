@@ -21,7 +21,7 @@ export default function Index() {
   <div className="flex flex-col w-[80%]">
     <div className="flex flex-row items-center p-4">
       <div className="flex items-center space-x-4">
-      <div className="text-2xl font-bold">Parassi Reader</div>
+      <div className="text-2xl font-bold">Parassis Reader</div>
         <FileUp size={24} />
         <Menu size={24} />
       </div>
