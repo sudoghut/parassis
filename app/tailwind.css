@@ -10,3 +10,12 @@ body {
     color-scheme: dark;
   }
 }
+
+@layer base {
+  h1 {
+    @apply text-3xl font-bold;
+  }
+  h2 {
+    @apply text-2xl font-semibold mt-2;
+  }
+}

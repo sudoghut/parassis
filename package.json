@@ -14,9 +14,11 @@
     "@remix-run/node": "^2.15.3",
     "@remix-run/react": "^2.15.3",
     "@remix-run/serve": "^2.15.3",
+    "dexie": "^4.0.11",
+    "dexie-react-hooks": "^1.1.7",
     "isbot": "^4.4.0",
-    "limbo-wasm": "^0.0.14",
     "lucide-react": "^0.475.0",
+    "marked": "^15.0.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
