@@ -1,4 +1,5 @@
 import type { MetaFunction } from "@remix-run/node";
+import { useEffect } from "react";
 import { 
   Menu, 
   FileUp,
@@ -288,7 +289,58 @@ const handleTextFile = (file: File) => {
   reader.readAsText(file);
 };
 
+const loadCurrentPage = async () => {
+  const db = new Dexie(dbName);
+  db.version(1).stores({
+    files: '++id, content, heading',
+    status: '++id, statusName, value'
+  });
+
+  try {
+    const currentStatus = await db.table('status')
+      .where('statusName').equals('currentPage')
+      .first();
+    
+    if (!currentStatus) return;
+
+    const currentId = parseInt(currentStatus.value);
+    const currentContent = await db.table('files')
+      .where('id').equals(currentId)
+      .first();
+
+    if (currentContent) {
+      const headings = await db.table('files')
+        .where('id').below(currentId)
+        .and(item => item.heading > 0)
+        .sortBy('id');
+
+      const latestHeadings = headings.reduce((acc: any[], curr) => {
+        const existingIndex = acc.findIndex(h => h.heading === curr.heading);
+        if (existingIndex >= 0) {
+          acc[existingIndex] = curr;
+        } else {
+          acc.push(curr);
+        }
+        return acc;
+      }, []).sort((a, b) => a.heading - b.heading);
+
+      const headingText = latestHeadings.map(h => h.content).join('\n\n');
+      const finalContent = headingText ? `${headingText}\n\n${currentContent.content}` : currentContent.content;
+
+      let parsedContent = await marked(finalContent);
+      parsedContent = parsedContent.replace(/\n/g, '<br />');
+      document.getElementById('content')!.innerHTML = parsedContent;
+    }
+  } catch (error) {
+    console.error('Error loading current page:', error);
+  }
+};
+
 export default function Index() {
+  useEffect(() => {
+    loadCurrentPage();
+  }, []);
+
   return (
     <div className="flex h-screen justify-center">
       <div className="flex flex-col w-[80%]">
