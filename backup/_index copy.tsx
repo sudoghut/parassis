@@ -20,14 +20,42 @@ export const meta: MetaFunction = () => {
 
 const dbName = 'Parassis';
 
-const handlePrevContent = async () => {
+const initializeDb = () => {
   const db = new Dexie(dbName);
   db.version(1).stores({
     files: '++id, content, heading',
     status: '++id, statusName, value'
   });
+  return db;
+};
 
-  // Get current page ID from status
+const getLatestHeadings = async (db: Dexie, beforeId: number) => {
+  const headings = await db.table('files')
+    .where('id').below(beforeId)
+    .and(item => item.heading > 0)
+    .sortBy('id');
+
+  return headings.reduce((acc: any[], curr) => {
+    const existingIndex = acc.findIndex(h => h.heading === curr.heading);
+    if (existingIndex >= 0) {
+      acc[existingIndex] = curr;
+    } else {
+      acc.push(curr);
+    }
+    return acc;
+  }, []).sort((a, b) => a.heading - b.heading);
+};
+
+const displayContent = async (content: string, headings: any[]) => {
+  const headingText = headings.map(h => h.content).join('\n\n');
+  const finalContent = headingText ? `${headingText}\n\n${content}` : content;
+  let parsedContent = await marked(finalContent);
+  parsedContent = parsedContent.replace(/\n/g, '<br />');
+  document.getElementById('content')!.innerHTML = parsedContent;
+};
+
+const handlePrevContent = async () => {
+  const db = initializeDb();
   const currentStatus = await db.table('status')
     .where('statusName').equals('currentPage')
     .first();
@@ -35,8 +63,6 @@ const handlePrevContent = async () => {
   if (!currentStatus) return;
   
   const currentId = parseInt(currentStatus.value);
-  
-  // Find previous heading 0 content
   const prevContent = await db.table('files')
     .where('heading').equals(0)
     .and(item => item.id < currentId)
@@ -44,47 +70,17 @@ const handlePrevContent = async () => {
     .first();
 
   if (prevContent) {
-    // Update status
     await db.table('status')
       .where('statusName').equals('currentPage')
       .modify({ value: prevContent.id.toString() });
     
-    // Get all headings before this content
-    const headings = await db.table('files')
-      .where('id').below(prevContent.id)
-      .and(item => item.heading > 0)
-      .sortBy('id');
-
-    // Filter to get only the most recent heading of each level
-    const latestHeadings = headings.reduce((acc: any[], curr) => {
-      const existingIndex = acc.findIndex(h => h.heading === curr.heading);
-      if (existingIndex >= 0) {
-        acc[existingIndex] = curr;
-      } else {
-        acc.push(curr);
-      }
-      return acc;
-    }, []).sort((a, b) => a.heading - b.heading);
-
-    // Combine headings with content
-    const headingText = latestHeadings.map(h => h.content).join('\n\n');
-    const finalContent = headingText ? `${headingText}\n\n${prevContent.content}` : prevContent.content;
-    
-    // Update display
-    let parsedContent = await marked(finalContent);
-    parsedContent = parsedContent.replace(/\n/g, '<br />');
-    document.getElementById('content')!.innerHTML = parsedContent;
+    const latestHeadings = await getLatestHeadings(db, prevContent.id);
+    await displayContent(prevContent.content, latestHeadings);
   }
 };
 
 const handleNextContent = async () => {
-  const db = new Dexie(dbName);
-  db.version(1).stores({
-    files: '++id, content, heading',
-    status: '++id, statusName, value'
-  });
-
-  // Get current page ID from status
+  const db = initializeDb();
   const currentStatus = await db.table('status')
     .where('statusName').equals('currentPage')
     .first();
@@ -92,44 +88,18 @@ const handleNextContent = async () => {
   if (!currentStatus) return;
   
   const currentId = parseInt(currentStatus.value);
-  
-  // Find next heading 0 content
   const nextContent = await db.table('files')
     .where('heading').equals(0)
     .and(item => item.id > currentId)
     .first();
 
   if (nextContent) {
-    // Update status
     await db.table('status')
       .where('statusName').equals('currentPage')
       .modify({ value: nextContent.id.toString() });
     
-    // Get all headings before this content
-    const headings = await db.table('files')
-      .where('id').below(nextContent.id)
-      .and(item => item.heading > 0)
-      .sortBy('id');
-
-    // Filter to get only the most recent heading of each level
-    const latestHeadings = headings.reduce((acc: any[], curr) => {
-      const existingIndex = acc.findIndex(h => h.heading === curr.heading);
-      if (existingIndex >= 0) {
-        acc[existingIndex] = curr;
-      } else {
-        acc.push(curr);
-      }
-      return acc;
-    }, []).sort((a, b) => a.heading - b.heading);
-
-    // Combine headings with content
-    const headingText = latestHeadings.map(h => h.content).join('\n\n');
-    const finalContent = headingText ? `${headingText}\n\n${nextContent.content}` : nextContent.content;
-    
-    // Update display
-    let parsedContent = await marked(finalContent);
-    parsedContent = parsedContent.replace(/\n/g, '<br />');
-    document.getElementById('content')!.innerHTML = parsedContent;
+    const latestHeadings = await getLatestHeadings(db, nextContent.id);
+    await displayContent(nextContent.content, latestHeadings);
   }
 };
 
@@ -176,12 +146,8 @@ const handleTextFile = (file: File) => {
     if (content) {
       let db: Dexie;
       Dexie.delete(dbName).then(() => {
-          db = new Dexie(dbName);
-          db.version(1).stores({
-            files: '++id, content, heading',
-            status: '++id, statusName, value'
-          });
-          return db.open();
+        db = initializeDb();
+        return db.open();
       }).then(() => {
         db.transaction('rw', db.table('files'), db.table('status'), async () => {
           console.log("Database is ready to use");
@@ -248,21 +214,7 @@ const handleTextFile = (file: File) => {
           }
         
           // Get all headings before this content
-          const headings = await db.table('files')
-            .where('id').below(minIdContent.id)
-            .and(item => item.heading > 0)
-            .sortBy('id');
-
-          // Filter to get only the most recent heading of each level
-          const latestHeadings = headings.reduce((acc: any[], curr) => {
-            const existingIndex = acc.findIndex(h => h.heading === curr.heading);
-            if (existingIndex >= 0) {
-              acc[existingIndex] = curr;
-            } else {
-              acc.push(curr);
-            }
-            return acc;
-          }, []).sort((a, b) => a.heading - b.heading);
+          const latestHeadings = await getLatestHeadings(db, minIdContent.id);
 
           // Combine headings with content
           const headingText = latestHeadings.map(h => h.content).join('\n');
@@ -290,12 +242,7 @@ const handleTextFile = (file: File) => {
 };
 
 const loadCurrentPage = async () => {
-  const db = new Dexie(dbName);
-  db.version(1).stores({
-    files: '++id, content, heading',
-    status: '++id, statusName, value'
-  });
-
+  const db = initializeDb();
   try {
     const currentStatus = await db.table('status')
       .where('statusName').equals('currentPage')
@@ -309,27 +256,8 @@ const loadCurrentPage = async () => {
       .first();
 
     if (currentContent) {
-      const headings = await db.table('files')
-        .where('id').below(currentId)
-        .and(item => item.heading > 0)
-        .sortBy('id');
-
-      const latestHeadings = headings.reduce((acc: any[], curr) => {
-        const existingIndex = acc.findIndex(h => h.heading === curr.heading);
-        if (existingIndex >= 0) {
-          acc[existingIndex] = curr;
-        } else {
-          acc.push(curr);
-        }
-        return acc;
-      }, []).sort((a, b) => a.heading - b.heading);
-
-      const headingText = latestHeadings.map(h => h.content).join('\n\n');
-      const finalContent = headingText ? `${headingText}\n\n${currentContent.content}` : currentContent.content;
-
-      let parsedContent = await marked(finalContent);
-      parsedContent = parsedContent.replace(/\n/g, '<br />');
-      document.getElementById('content')!.innerHTML = parsedContent;
+      const latestHeadings = await getLatestHeadings(db, currentId);
+      await displayContent(currentContent.content, latestHeadings);
     }
   } catch (error) {
     console.error('Error loading current page:', error);

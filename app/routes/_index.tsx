@@ -1,5 +1,5 @@
 import type { MetaFunction } from "@remix-run/node";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { 
   Menu, 
   FileUp,
@@ -7,9 +7,12 @@ import {
   Wand,
   MessageCircle,
   Save,
+  Settings, // Add this import
 } from "lucide-react";
 import Dexie from "dexie";
 import { marked } from "marked";
+import TokenInput from '../components/TokenInput';
+import { checkLLMToken, saveLLMToken } from '../utils/tokenManager';
 
 export const meta: MetaFunction = () => {
   return [
@@ -24,7 +27,7 @@ const initializeDb = () => {
   const db = new Dexie(dbName);
   db.version(1).stores({
     files: '++id, content, heading',
-    status: '++id, statusName, value'
+    statusName: 'name, value'  // Modified schema
   });
   return db;
 };
@@ -56,8 +59,8 @@ const displayContent = async (content: string, headings: any[]) => {
 
 const handlePrevContent = async () => {
   const db = initializeDb();
-  const currentStatus = await db.table('status')
-    .where('statusName').equals('currentPage')
+  const currentStatus = await db.table('statusName')
+    .where('name').equals('currentPage')
     .first();
   
   if (!currentStatus) return;
@@ -70,8 +73,8 @@ const handlePrevContent = async () => {
     .first();
 
   if (prevContent) {
-    await db.table('status')
-      .where('statusName').equals('currentPage')
+    await db.table('statusName')
+      .where('name').equals('currentPage')
       .modify({ value: prevContent.id.toString() });
     
     const latestHeadings = await getLatestHeadings(db, prevContent.id);
@@ -81,8 +84,8 @@ const handlePrevContent = async () => {
 
 const handleNextContent = async () => {
   const db = initializeDb();
-  const currentStatus = await db.table('status')
-    .where('statusName').equals('currentPage')
+  const currentStatus = await db.table('statusName')
+    .where('name').equals('currentPage')
     .first();
   
   if (!currentStatus) return;
@@ -94,8 +97,8 @@ const handleNextContent = async () => {
     .first();
 
   if (nextContent) {
-    await db.table('status')
-      .where('statusName').equals('currentPage')
+    await db.table('statusName')
+      .where('name').equals('currentPage')
       .modify({ value: nextContent.id.toString() });
     
     const latestHeadings = await getLatestHeadings(db, nextContent.id);
@@ -149,7 +152,7 @@ const handleTextFile = (file: File) => {
         db = initializeDb();
         return db.open();
       }).then(() => {
-        db.transaction('rw', db.table('files'), db.table('status'), async () => {
+        db.transaction('rw', db.table('files'), db.table('statusName'), async () => {
           console.log("Database is ready to use");
           const lines = content.split('\n');
           let currentContent = [];
@@ -198,16 +201,16 @@ const handleTextFile = (file: File) => {
             minIdContent = linesWithHeadingZero[0]; // The first item is the one with the lowest id
             
             // Store initial page in status
-            await db.table('status').add({
-              statusName: 'currentPage',
+            await db.table('statusName').put({
+              name: 'currentPage',
               value: minIdContent.id.toString()
             });
           } else {
             console.log('No lines with heading 0 found. Using the first line instead.');
             minIdContent = await db.table('files').toCollection().first();
             if (minIdContent) {
-              await db.table('status').add({
-                statusName: 'currentPage',
+              await db.table('statusName').put({
+                name: 'currentPage',
                 value: minIdContent.id.toString()
               });
             }
@@ -244,8 +247,8 @@ const handleTextFile = (file: File) => {
 const loadCurrentPage = async () => {
   const db = initializeDb();
   try {
-    const currentStatus = await db.table('status')
-      .where('statusName').equals('currentPage')
+    const currentStatus = await db.table('statusName')
+      .where('name').equals('currentPage')
       .first();
     
     if (!currentStatus) return;
@@ -265,53 +268,83 @@ const loadCurrentPage = async () => {
 };
 
 export default function Index() {
+  const [showTokenInput, setShowTokenInput] = useState(false);
+
   useEffect(() => {
-    loadCurrentPage();
+    const init = async () => {
+      const db = initializeDb();
+      const hasToken = await checkLLMToken(db);
+      if (!hasToken) {
+        setShowTokenInput(true);
+      }
+      loadCurrentPage();
+    };
+
+    init();
   }, []);
 
-  return (
-    <div className="flex h-screen justify-center">
-      <div className="flex flex-col w-[80%]">
-        <div className="flex flex-row items-center p-4">
-          <div className="flex items-center space-x-4">
-            <div className="text-2xl font-bold">Parassis Reader</div>
-            <Menu size={24} className="cursor-pointer" onClick={() => console.log('Menu clicked')} />
-            <FileUp size={24} className="cursor-pointer" onClick={uploadFile} />
-            <Save size={24} className="cursor-pointer" onClick={() => console.log('Save clicked')} />
-          </div>
-        </div>
-        <div id="content" className="flex flex-col items-center justify-center p-4">
-          Content
-        </div>
-        <div className="flex flex-row items-center justify-between p-4">
-          <div className="flex space-x-4 justify-center items-center w-full">
-            <div 
-              className="flex-1 py-2 px-4 text-center cursor-pointer border-r"
-              onClick={handlePrevContent}
-            >
-              &lt;&lt;&lt; Prev
-            </div>
-            <div 
-              className="flex-1 py-2 px-4 text-center cursor-pointer"
-              onClick={handleNextContent}
-            >
-              Next &gt;&gt;&gt;
-            </div>
-          </div>
-        </div>
+  const handleTokenSubmit = async (provider: string, token: string) => {
+    const db = initializeDb();
+    await saveLLMToken(db, provider, token);
+    setShowTokenInput(false);
+  };
 
-        <div className="flex flex-row items-center p-4">
-          <div className="flex items-center space-x-4">
-            <div className="text-2xl font-bold">Assistant</div>
-            <LayoutList size={24} />
-            <Wand size={24} />
-            <MessageCircle size={24} />
+  return (
+    <>
+      {showTokenInput && (
+        <TokenInput 
+          onSubmit={handleTokenSubmit} 
+          onClose={() => setShowTokenInput(false)} 
+        />
+      )}
+      <div className="flex h-screen justify-center">
+        <div className="flex flex-col w-[80%]">
+          <div className="flex flex-row items-center p-4">
+            <div className="flex items-center space-x-4">
+              <div className="text-2xl font-bold">Parassis Reader</div>
+              <Menu size={24} className="cursor-pointer" onClick={() => console.log('Menu clicked')} />
+              <FileUp size={24} className="cursor-pointer" onClick={uploadFile} />
+              <Save size={24} className="cursor-pointer" onClick={() => console.log('Save clicked')} />
+            </div>
           </div>
-        </div>
-        <div className="flex flex-row items-center justify-center p-4">
-          Anotation
+          <div id="content" className="flex flex-col items-center justify-center p-4">
+            Content
+          </div>
+          <div className="flex flex-row items-center justify-between p-4">
+            <div className="flex space-x-4 justify-center items-center w-full">
+              <div 
+                className="flex-1 py-2 px-4 text-center cursor-pointer border-r"
+                onClick={handlePrevContent}
+              >
+                &lt;&lt;&lt; Prev
+              </div>
+              <div 
+                className="flex-1 py-2 px-4 text-center cursor-pointer"
+                onClick={handleNextContent}
+              >
+                Next &gt;&gt;&gt;
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-row items-center p-4">
+            <div className="flex items-center space-x-4">
+              <div className="text-2xl font-bold">Assistant</div>
+              <LayoutList size={24} />
+              <Wand size={24} />
+              <MessageCircle size={24} />
+              <Settings 
+                size={24} 
+                className="cursor-pointer hover:text-blue-500 transition-colors"
+                onClick={() => setShowTokenInput(true)}
+              />
+            </div>
+          </div>
+          <div className="flex flex-row items-center justify-center p-4">
+            Anotation
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
