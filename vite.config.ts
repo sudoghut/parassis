@@ -9,6 +9,16 @@ declare module "@remix-run/node" {
 }
 
 export default defineConfig({
+  server: {
+    proxy: {
+      '/volces-api': {
+        target: 'https://ark.cn-beijing.volces.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/volces-api/, ''),
+        secure: false
+      }
+    }
+  },
   plugins: [
     remix({
       future: {

@@ -34,7 +34,10 @@ export default function TokenInput({ onSubmit, onClose, initialProvider = '', in
             <label className="block mb-2 text-gray-300">Provider</label>
             <select
               value={provider}
-              onChange={(e) => setProvider(e.target.value)}
+              onChange={(e) => {
+                setProvider(e.target.value);
+                setToken(''); // Clear token when provider changes
+              }}
               className="w-full p-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             >
               {LLMProviders.map((p) => (
