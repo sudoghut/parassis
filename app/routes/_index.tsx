@@ -12,7 +12,7 @@ import {
 import Dexie from "dexie";
 import { marked } from "marked";
 import TokenInput from '../components/TokenInput';
-import { checkLLMToken, saveLLMToken } from '../utils/tokenManager';
+import { checkLLMToken, saveLLMToken, getLLMToken } from '../utils/tokenManager';
 
 export const meta: MetaFunction = () => {
   return [
@@ -269,6 +269,7 @@ const loadCurrentPage = async () => {
 
 export default function Index() {
   const [showTokenInput, setShowTokenInput] = useState(false);
+  const [tokenInfo, setTokenInfo] = useState({ provider: '', token: '' });
 
   useEffect(() => {
     const init = async () => {
@@ -277,6 +278,8 @@ export default function Index() {
       if (!hasToken) {
         setShowTokenInput(true);
       }
+      const info = await getLLMToken(db);
+      setTokenInfo(info);
       loadCurrentPage();
     };
 
@@ -289,12 +292,21 @@ export default function Index() {
     setShowTokenInput(false);
   };
 
+  const handleSettingsClick = async () => {
+    const db = initializeDb();
+    const info = await getLLMToken(db);
+    setTokenInfo(info);
+    setShowTokenInput(true);
+  };
+
   return (
     <>
       {showTokenInput && (
         <TokenInput 
           onSubmit={handleTokenSubmit} 
-          onClose={() => setShowTokenInput(false)} 
+          onClose={() => setShowTokenInput(false)}
+          initialProvider={tokenInfo.provider}
+          initialToken={tokenInfo.token}
         />
       )}
       <div className="flex h-screen justify-center">
@@ -336,7 +348,7 @@ export default function Index() {
               <Settings 
                 size={24} 
                 className="cursor-pointer hover:text-blue-500 transition-colors"
-                onClick={() => setShowTokenInput(true)}
+                onClick={handleSettingsClick}
               />
             </div>
           </div>

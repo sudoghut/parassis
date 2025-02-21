@@ -5,11 +5,13 @@ import { X } from 'lucide-react'; // Add this import
 interface TokenInputProps {
   onSubmit: (provider: string, token: string) => void;
   onClose: () => void; // Add this prop
+  initialProvider?: string;
+  initialToken?: string;
 }
 
-export default function TokenInput({ onSubmit, onClose }: TokenInputProps) {
-  const [provider, setProvider] = useState<string>(LLMProviders[0].id);
-  const [token, setToken] = useState('');
+export default function TokenInput({ onSubmit, onClose, initialProvider = '', initialToken = '' }: TokenInputProps) {
+  const [provider, setProvider] = useState(initialProvider);
+  const [token, setToken] = useState(initialToken);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
