@@ -175,11 +175,25 @@ export async function generateThreadSummary(
     }
 
     onStatus('Generating thread summary...');
-    prompt = `Given the following context from previous pages:\n\n${trimmedContext}\n\n` +
-      `And the current content:\n\n${summary}\n\n` +
-      `Identify and summarize the main recurring themes or threads across these texts. ` +
-      `Emphasize connections between ideas and concepts that appear multiple times. ` +
-      `Ensure that the summary is in the same language as the provided content.`;
+    prompt = `
+      Given the following context from previous pages:
+
+      ${trimmedContext}
+
+      And the current content:
+
+      ${summary}
+
+      Analyze the current content by leveraging relevant references from the previous pages.  
+
+      - Summarize the current content in the **same language** which is 中文 as the provided text.  
+      - Identify recurring threads or key topics that appear in both the current content and previous pages.  
+      - Present the output in an itemized format:  
+        1. For each thread or topic, provide a single sentence summarizing its relevance.  
+        2. Follow this with a detailed analysis explaining how the topic evolves, connects to prior discussions, and contributes to the current content.  
+      - Ensure that connections to previous pages are direct and relevant. Do not introduce unrelated elements or fabricate connections that do not exist.  
+      - If applicable, highlight how past themes influence or shape the ideas on the current page. 
+    `;
     // print the whole prompt for debugging
     console.log(`[Debug] Prompt length: ${prompt.length} chars\n${prompt}`);
     return await callLLMAPI(tokenInfo, prompt, onStatus, onError, onPartialResponse);
@@ -263,14 +277,15 @@ async function callLLMAPI(
           if (jsonStr === '[DONE]') continue;
           
           try {
-            const jsonData = JSON.parse(jsonStr);
-            const content = config.extractResponse(jsonData);
-            if (content) {
-              fullText += content;
-              onPartialResponse(content);
-            }
+        const jsonData = JSON.parse(jsonStr);
+        let content = config.extractResponse(jsonData);
+        if (content) {
+          content = content.replace(/\n/g, '<br />');
+          fullText += content;
+          onPartialResponse(content);
+        }
           } catch (e) {
-            console.warn('Failed to parse JSON:', e);
+        console.warn('Failed to parse JSON:', e);
           }
         }
       }
