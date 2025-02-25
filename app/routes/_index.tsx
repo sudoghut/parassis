@@ -7,11 +7,11 @@ import {
   Wand,
   MessageCircle,
   Save,
-  Settings,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import Dexie from "dexie";
 import { marked } from "marked";
-import TokenInput from '../components/TokenInput';
+import Settings from '../components/Settings';
 import { LLMStatus } from '../components/LLMStatus';
 import { checkLLMToken, saveLLMToken, getLLMToken } from '../utils/tokenManager';
 import { generateThreadSummary } from '../utils/summarizer';
@@ -28,8 +28,18 @@ const dbName = 'Parassis';
 const initializeDb = () => {
   const db = new Dexie(dbName);
   db.version(1).stores({
+    files: '++id, content, heading'
+  });
+  
+  db.version(3).stores({
     files: '++id, content, heading',
-    statusName: 'name, value'  // Modified schema
+    statusName: 'element, value'  // Schema for storing settings and values
+  }).upgrade(tx => {
+    // Ensure we have a default language setting
+    return tx.table('statusName').put({
+      element: 'language',
+      value: 'English'  // Default to English name instead of code
+    });
   });
   return db;
 };
@@ -64,7 +74,7 @@ export default function Index() {
     const db = initializeDb();
     try {
       const currentStatus = await db.table('statusName')
-        .where('name').equals('currentPage')
+        .where('element').equals('currentPage')
         .first();
       
       if (!currentStatus) return;
@@ -85,7 +95,7 @@ export default function Index() {
   };
 
   const [showTokenInput, setShowTokenInput] = useState(false);
-  const [tokenInfo, setTokenInfo] = useState({ provider: '', token: '' });
+  const [tokenInfo, setTokenInfo] = useState({ provider: '', token: '', language: '' });
   const [llmStatus, setLLMStatus] = useState('');
   const [llmError, setLLMError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -93,7 +103,7 @@ export default function Index() {
   const handlePrevContent = async () => {
     const db = initializeDb();
     const currentStatus = await db.table('statusName')
-      .where('name').equals('currentPage')
+      .where('element').equals('currentPage')
       .first();
     
     if (!currentStatus) return;
@@ -107,7 +117,7 @@ export default function Index() {
 
     if (prevContent) {
       await db.table('statusName')
-        .where('name').equals('currentPage')
+      .where('element').equals('currentPage')
         .modify({ value: prevContent.id.toString() });
       
       const latestHeadings = await getLatestHeadings(db, prevContent.id);
@@ -138,8 +148,8 @@ export default function Index() {
 
   const handleNextContent = async () => {
     const db = initializeDb();
-    const currentStatus = await db.table('statusName')
-      .where('name').equals('currentPage')
+      const currentStatus = await db.table('statusName')
+      .where('element').equals('currentPage')
       .first();
     
     if (!currentStatus) return;
@@ -152,7 +162,7 @@ export default function Index() {
 
     if (nextContent) {
       await db.table('statusName')
-        .where('name').equals('currentPage')
+        .where('element').equals('currentPage')
         .modify({ value: nextContent.id.toString() });
       
       const latestHeadings = await getLatestHeadings(db, nextContent.id);
@@ -232,12 +242,10 @@ export default function Index() {
     reader.onload = async (event) => {
       const content = event.target?.result as string;
       if (content) {
-        let db: Dexie;
-        Dexie.delete(dbName).then(() => {
-          db = initializeDb();
-          return db.open();
-        }).then(() => {
-          db.transaction('rw', db.table('files'), db.table('statusName'), async () => {
+        const db = initializeDb();
+        try {
+          await db.open();
+          await db.transaction('rw', db.table('files'), db.table('statusName'), async () => {
             console.log("Database is ready to use");
             const lines = content.split('\n');
             let currentContent = [];
@@ -286,7 +294,7 @@ export default function Index() {
               
               // Store initial page in status
               await db.table('statusName').put({
-                name: 'currentPage',
+                element: 'currentPage',
                 value: minIdContent.id.toString()
               });
             } else {
@@ -294,8 +302,8 @@ export default function Index() {
               minIdContent = await db.table('files').toCollection().first();
               if (minIdContent) {
                 await db.table('statusName').put({
-                  name: 'currentPage',
-                  value: minIdContent.id.toString()
+                element: 'currentPage',
+                value: minIdContent.id.toString()
                 });
               }
             }
@@ -317,9 +325,9 @@ export default function Index() {
           }).catch(error => {
             console.error('Error processing file:', error);
           });
-      }).catch((error) => {
-            console.error("Error setting up the database:", error);
-        });
+        } catch (error) {
+          console.error("Error processing file:", error);
+        }
       } else {
         console.error('Failed to read text file content');
       }
@@ -351,6 +359,17 @@ export default function Index() {
   useEffect(() => {
     const init = async () => {
       const db = initializeDb();
+      try {
+        await db.open();
+      } catch (error: unknown) {
+        console.error('Error opening database:', error);
+        // Only delete and reinitialize if there's a version/schema error
+        if (error instanceof Error && error.name === 'VersionError') {
+          await Dexie.delete(dbName);
+          const newDb = initializeDb();
+          await newDb.open();
+        }
+      }
       const hasToken = await checkLLMToken(db);
       if (!hasToken) {
         setShowTokenInput(true);
@@ -363,10 +382,11 @@ export default function Index() {
     init();
   }, []);
 
-  const handleTokenSubmit = async (provider: string, token: string) => {
+  const handleTokenSubmit = async (provider: string, token: string, language: string) => {
     const db = initializeDb();
-    await saveLLMToken(db, provider, token);
+    await saveLLMToken(db, provider, token, language);
     setShowTokenInput(false);
+    setTokenInfo({ provider, token, language });
   };
 
   const handleSettingsClick = async () => {
@@ -379,11 +399,13 @@ export default function Index() {
   return (
     <>
       {showTokenInput && (
-        <TokenInput 
+        <Settings 
           onSubmit={handleTokenSubmit} 
           onClose={() => setShowTokenInput(false)}
           initialProvider={tokenInfo.provider}
           initialToken={tokenInfo.token}
+          initialLanguage={tokenInfo.language}
+          db={initializeDb()}
         />
       )}
       <div className="flex h-screen justify-center">
@@ -422,7 +444,7 @@ export default function Index() {
               <LayoutList size={24} />
               <Wand size={24} />
               <MessageCircle size={24} />
-              <Settings 
+              <SettingsIcon 
                 size={24} 
                 className="cursor-pointer hover:text-blue-500 transition-colors"
                 onClick={handleSettingsClick}

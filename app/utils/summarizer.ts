@@ -1,8 +1,9 @@
+import { use } from 'marked';
 import { getLLMToken } from './tokenManager';
 import Dexie from 'dexie';
 
 const MAX_CONTEXT_CHARS = 2000;
-const MAX_PREV_CONTENTS = 5;
+const MAX_PREV_CONTENTS = 10;
 const MAX_SUMMARY_CHARS = 500;
 
 type LLMProvider = 'openai' | 'anthropic' | 'deepseek' | 'volcengine';
@@ -120,7 +121,7 @@ async function trimContent(contents: string[]): Promise<string> {
   }
   
   console.log(`[Debug] Trimming content to ${MAX_CONTEXT_CHARS} chars`);
-  return combined.slice(combined.length - MAX_CONTEXT_CHARS);
+  return combined.slice(0, MAX_CONTEXT_CHARS);
 }
 
 export async function generateThreadSummary(
@@ -144,8 +145,7 @@ export async function generateThreadSummary(
 
     onStatus('Fetching previous contents...');
     const prevContents = await db.table('files')
-      .where('heading').equals(0)
-      .and(item => item.id < currentId)
+      .where('id').below(currentId)
       .reverse()
       .limit(MAX_PREV_CONTENTS)
       .toArray();
@@ -175,6 +175,19 @@ export async function generateThreadSummary(
     }
 
     onStatus('Generating thread summary...');
+    let userLanguage = 'en';  // Default to English code
+    try {
+      const langRecord = await db.table('statusName').where('element').equals('language').first();
+      if (langRecord?.value) {
+        userLanguage = langRecord.value;
+        console.log('[Debug] Found language record:', langRecord);
+      } else {
+        console.log('[Debug] No language record found, using default:', userLanguage);
+      }
+    } catch (error) {
+      console.error('Error getting language setting:', error);
+    }
+    console.log(`[Debug] User language: ${userLanguage}`);
     prompt = `
       Given the following context from previous pages:
 
@@ -186,7 +199,7 @@ export async function generateThreadSummary(
 
       Analyze the current content by leveraging relevant references from the previous pages.  
 
-      - Summarize the current content in the **same language** which is 中文 as the provided text.  
+      - Summarize the current content in the selected language. The language is ${userLanguage}.
       - Identify recurring threads or key topics that appear in both the current content and previous pages.  
       - Present the output in an itemized format:  
         1. For each thread or topic, provide a single sentence summarizing its relevance.  

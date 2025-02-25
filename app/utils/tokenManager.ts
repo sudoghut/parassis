@@ -3,7 +3,7 @@ import Dexie from "dexie";
 export const checkLLMToken = async (db: Dexie): Promise<boolean> => {
   try {
     const tokenStatus = await db.table('statusName')
-      .where('name').equals('llmToken')
+      .where('element').equals('llmToken')
       .first();
     
     return !!(tokenStatus && tokenStatus.value);
@@ -13,46 +13,20 @@ export const checkLLMToken = async (db: Dexie): Promise<boolean> => {
   }
 };
 
-export const saveLLMToken = async (db: Dexie, provider: string, token: string) => {
-  try {
-    const tokenData = {
-      provider,
-      token
-    };
-    
-    await db.table('statusName').put({
-      name: 'llmToken',
-      value: JSON.stringify(tokenData)
-    });
-  } catch (error) {
-    console.error('Error saving LLM token:', error);
-    throw error;
-  }
+export const saveLLMToken = async (db: Dexie, provider: string, token: string, language: string) => {
+  await db.table('statusName').put({ element: 'llmProvider', value: provider });
+  await db.table('statusName').put({ element: 'llmToken', value: token });
+  await db.table('statusName').put({ element: 'language', value: language });
 };
 
 export const getLLMToken = async (db: Dexie) => {
-  const tokenInfo = await db.table('statusName')
-    .where('name').equals('llmToken')
-    .first();
-  
-  if (tokenInfo?.value) {
-    try {
-      const parsedValue = JSON.parse(tokenInfo.value);
-      return {
-        token: parsedValue.token || '',
-        provider: parsedValue.provider || ''
-      };
-    } catch (error) {
-      console.error('Error parsing token info:', error);
-      return {
-        token: '',
-        provider: ''
-      };
-    }
-  }
+  const provider = await db.table('statusName').where('element').equals('llmProvider').first();
+  const token = await db.table('statusName').where('element').equals('llmToken').first();
+  const language = await db.table('statusName').where('element').equals('language').first();
   
   return {
-    token: '',
-    provider: ''
+    provider: provider?.value || '',
+    token: token?.value || '',
+    language: language?.value || 'English'
   };
 };
