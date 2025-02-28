@@ -24,15 +24,11 @@ export const meta: MetaFunction = () => {
 };
 
 const dbName = 'Parassis';
+const statusDbName = 'ParassisStatusName';
 
-const initializeDb = () => {
-  const db = new Dexie(dbName);
+const initializeStatusDb = () => {
+  const db = new Dexie(statusDbName);
   db.version(1).stores({
-    files: '++id, content, heading'
-  });
-  
-  db.version(3).stores({
-    files: '++id, content, heading',
     statusName: 'element, value'  // Schema for storing settings and values
   }).upgrade(tx => {
     // Ensure we have a default language setting
@@ -40,6 +36,14 @@ const initializeDb = () => {
       element: 'language',
       value: 'English'  // Default to English name instead of code
     });
+  });
+  return db;
+};
+
+const initializeDb = () => {
+  const db = new Dexie(dbName);
+  db.version(1).stores({
+    files: '++id, content, heading'
   });
   return db;
 };
@@ -72,8 +76,9 @@ const displayContent = async (content: string, headings: any[]) => {
 export default function Index() {
   const loadCurrentPage = async () => {
     const db = initializeDb();
+    const statusDb = initializeStatusDb();
     try {
-      const currentStatus = await db.table('statusName')
+      const currentStatus = await statusDb.table('statusName')
         .where('element').equals('currentPage')
         .first();
       
@@ -102,7 +107,8 @@ export default function Index() {
 
   const handlePrevContent = async () => {
     const db = initializeDb();
-    const currentStatus = await db.table('statusName')
+    const statusDb = initializeStatusDb();
+    const currentStatus = await statusDb.table('statusName')
       .where('element').equals('currentPage')
       .first();
     
@@ -116,7 +122,7 @@ export default function Index() {
       .first();
 
     if (prevContent) {
-      await db.table('statusName')
+      await statusDb.table('statusName')
       .where('element').equals('currentPage')
         .modify({ value: prevContent.id.toString() });
       
@@ -128,11 +134,12 @@ export default function Index() {
       document.getElementById('annotation')!.innerHTML = '';
       // Generate and display thread summary
       const summary = await generateThreadSummary(
-        db, 
+        db,
+        statusDb,
         prevContent.id,
-        (status) => setLLMStatus(status),
-        (error) => setLLMError(error),
-        (partial) => {
+        (status: string) => setLLMStatus(status),
+        (error: string) => setLLMError(error),
+        (partial: string) => {
           const annotation = document.getElementById('annotation');
           if (annotation) {
             annotation.innerHTML += partial;
@@ -148,7 +155,8 @@ export default function Index() {
 
   const handleNextContent = async () => {
     const db = initializeDb();
-      const currentStatus = await db.table('statusName')
+      const statusDb = initializeStatusDb();
+      const currentStatus = await statusDb.table('statusName')
       .where('element').equals('currentPage')
       .first();
     
@@ -161,7 +169,8 @@ export default function Index() {
       .first();
 
     if (nextContent) {
-      await db.table('statusName')
+      const statusDb = initializeStatusDb();
+      await statusDb.table('statusName')
         .where('element').equals('currentPage')
         .modify({ value: nextContent.id.toString() });
       
@@ -173,11 +182,12 @@ export default function Index() {
       document.getElementById('annotation')!.innerHTML = '';
       // Generate and display thread summary
       const summary = await generateThreadSummary(
-        db, 
+        db,
+        statusDb,
         nextContent.id,
-        (status) => setLLMStatus(status),
-        (error) => setLLMError(error),
-        (partial) => {
+        (status: string) => setLLMStatus(status),
+        (error: string) => setLLMError(error),
+        (partial: string) => {
           const annotation = document.getElementById('annotation');
           if (annotation) {
             annotation.innerHTML += partial;
@@ -191,52 +201,6 @@ export default function Index() {
     }
   };
 
-  const handleDbFile = async (file: File) => {
-    try {
-      // Delete existing database
-      await Dexie.delete(dbName);
-      
-      // Create a new database instance
-      const db = initializeDb();
-      await db.open();
-      
-      const reader = new FileReader();
-      
-      reader.onload = async (event) => {
-        const arrayBuffer = event.target?.result as ArrayBuffer;
-        if (arrayBuffer) {
-          // Create a Blob from the ArrayBuffer
-          const blob = new Blob([arrayBuffer], { type: 'application/x-sqlite3' });
-          
-          // Save the blob as the new database file
-          const response = await fetch(URL.createObjectURL(blob));
-          const dbData = await response.blob();
-          
-          // Store database contents in IndexedDB
-          const dbContent = await dbData.text();
-          await db.table('files').clear();
-          await db.table('files').add({
-            content: dbContent,
-            heading: 0
-          });
-          
-          // Load the first page
-          await loadCurrentPage();
-        } else {
-          console.error('Failed to read .db file content');
-        }
-      };
-      
-      reader.onerror = (error) => {
-        console.error('Error reading file:', error);
-      };
-      
-      reader.readAsArrayBuffer(file);
-    } catch (error) {
-      console.error('Error handling DB file:', error);
-    }
-  };
-
   const handleTextFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = async (event) => {
@@ -245,14 +209,20 @@ export default function Index() {
         const db = initializeDb();
         try {
           await db.open();
-          await db.transaction('rw', db.table('files'), db.table('statusName'), async () => {
+          document.getElementById('annotation')!.innerHTML = '';
+          // Delete and recreate Parassis database
+          await Dexie.delete(dbName);
+          const newDb = initializeDb();
+          await newDb.open();
+          
+          await newDb.transaction('rw', newDb.table('files'), async () => {
             console.log("Database is ready to use");
             const lines = content.split('\n');
             let currentContent = [];
             
             const saveContent = async (content: string[], heading: number = 0) => {
               if (content.length > 0) {
-                await db.table('files').add({
+                await newDb.table('files').add({
                   content: content.join('\n'),
                   heading: heading
                 });
@@ -270,7 +240,7 @@ export default function Index() {
                   
                   // Add the heading
                   const headingLevel = headingMatch[1].length;
-                  await db.table('files').add({
+                  await newDb.table('files').add({
                     content: trimmedLine,
                     heading: headingLevel
                   });
@@ -284,7 +254,7 @@ export default function Index() {
             await saveContent(currentContent);
           }).then(async () => {
             // Query for lines with heading 0, ordered by id
-            const linesWithHeadingZero = await db.table('files')
+            const linesWithHeadingZero = await newDb.table('files')
               .where('heading').equals(0)
               .sortBy('id');
           
@@ -293,27 +263,34 @@ export default function Index() {
               minIdContent = linesWithHeadingZero[0]; // The first item is the one with the lowest id
               
               // Store initial page in status
-              await db.table('statusName').put({
+              const statusDb = initializeStatusDb();
+                const minId = await newDb.table('files')
+                .where('heading').equals(0)
+                .first()
+                .then(item => item?.id || 1);
+                
+                await statusDb.table('statusName').put({
                 element: 'currentPage',
-                value: minIdContent.id.toString()
-              });
+                value: minId.toString()
+                });
             } else {
               console.log('No lines with heading 0 found. Using the first line instead.');
-              minIdContent = await db.table('files').toCollection().first();
+              minIdContent = await newDb.table('files').toCollection().first();
               if (minIdContent) {
-                await db.table('statusName').put({
+                const statusDb = initializeStatusDb();
+                await statusDb.table('statusName').put({
                 element: 'currentPage',
-                value: minIdContent.id.toString()
+                value: '1'
                 });
               }
             }
           
             // Get all headings before this content
-            const latestHeadings = await getLatestHeadings(db, minIdContent.id);
+            const latestHeadings = await getLatestHeadings(newDb, minIdContent.id);
 
             // Combine headings with content
             const headingText = latestHeadings.map(h => h.content).join('\n');
-            const finalContent = headingText ? `${headingText}\n\n${minIdContent.content}` : minIdContent.content;
+            let finalContent = headingText ? `${headingText}\n\n${minIdContent.content}` : minIdContent.content;
             
             console.log('final content:', finalContent);
             let parsedContent = await marked(finalContent);
@@ -322,6 +299,9 @@ export default function Index() {
             console.log('parsed content:', parsedContent);
             document.getElementById('content')!.innerHTML = parsedContent;
             console.log('File processed successfully');
+            
+            // Reload current page to ensure proper initialization
+            loadCurrentPage();
           }).catch(error => {
             console.error('Error processing file:', error);
           });
@@ -343,14 +323,7 @@ export default function Index() {
       const file = (event.target as HTMLInputElement).files?.[0];
       if (file) {
         console.log('Uploading file:', file.name);
-        
-        if (file.name.endsWith('.db')) {
-          // Handle .db file
-          handleDbFile(file);
-        } else {
-          // Handle text file
-          handleTextFile(file);
-        }
+        handleTextFile(file);
       }
     };
     input.click();
@@ -359,22 +332,27 @@ export default function Index() {
   useEffect(() => {
     const init = async () => {
       const db = initializeDb();
+      const statusDb = initializeStatusDb();
       try {
         await db.open();
+        await statusDb.open();
       } catch (error: unknown) {
         console.error('Error opening database:', error);
         // Only delete and reinitialize if there's a version/schema error
         if (error instanceof Error && error.name === 'VersionError') {
           await Dexie.delete(dbName);
+          await Dexie.delete(statusDbName);
           const newDb = initializeDb();
+          const newStatusDb = initializeStatusDb();
           await newDb.open();
+          await newStatusDb.open();
         }
       }
-      const hasToken = await checkLLMToken(db);
+      const hasToken = await checkLLMToken(statusDb);
       if (!hasToken) {
         setShowTokenInput(true);
       }
-      const info = await getLLMToken(db);
+      const info = await getLLMToken(statusDb);
       setTokenInfo(info);
       loadCurrentPage();
     };
@@ -383,15 +361,15 @@ export default function Index() {
   }, []);
 
   const handleTokenSubmit = async (provider: string, token: string, language: string) => {
-    const db = initializeDb();
-    await saveLLMToken(db, provider, token, language);
+    const statusDb = initializeStatusDb();
+    await saveLLMToken(statusDb, provider, token, language);
     setShowTokenInput(false);
     setTokenInfo({ provider, token, language });
   };
 
   const handleSettingsClick = async () => {
-    const db = initializeDb();
-    const info = await getLLMToken(db);
+    const statusDb = initializeStatusDb();
+    const info = await getLLMToken(statusDb);
     setTokenInfo(info);
     setShowTokenInput(true);
   };
@@ -405,7 +383,7 @@ export default function Index() {
           initialProvider={tokenInfo.provider}
           initialToken={tokenInfo.token}
           initialLanguage={tokenInfo.language}
-          db={initializeDb()}
+          db={initializeStatusDb()}
         />
       )}
       <div className="flex h-screen justify-center">
@@ -452,7 +430,7 @@ export default function Index() {
             </div>
           </div>
           <div id="annotation" className="flex flex-row items-center justify-center p-4">
-            Annotation
+            Annotation content
           </div>
         </div>
       </div>

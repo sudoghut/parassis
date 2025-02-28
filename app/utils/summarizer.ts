@@ -125,7 +125,8 @@ async function trimContent(contents: string[]): Promise<string> {
 }
 
 export async function generateThreadSummary(
-  db: Dexie, 
+  db: Dexie,
+  statusDb: Dexie,
   currentId: number,
   onStatus: (status: string) => void,
   onError: (error: string) => void,
@@ -150,13 +151,13 @@ export async function generateThreadSummary(
       .limit(MAX_PREV_CONTENTS)
       .toArray();
     
-    console.log(`[Debug] Found ${prevContents.length} previous contents`);
+    // console.log(`[Debug] Found ${prevContents.length} previous contents`);
 
     const prevContexts = prevContents.map(item => item.content);
     const trimmedContext = await trimContent(prevContexts);
 
     onStatus('Getting LLM token...');
-    const tokenInfo = await getLLMToken(db);
+    const tokenInfo = await getLLMToken(statusDb);
     if (!tokenInfo.token) {
       onError('No LLM token found');
       return '';
@@ -165,7 +166,7 @@ export async function generateThreadSummary(
     let prompt: string;
     let summary: string;
 
-    console.log(`[Debug] Current content length: ${currentContent.content.length} chars`);
+    // console.log(`[Debug] Current content length: ${currentContent.content.length} chars`);
     if (currentContent.content.length > MAX_CONTEXT_CHARS) {
       onStatus('Summarizing long content...');
       const initialPrompt = `Summarize the following text in ${MAX_SUMMARY_CHARS} characters or less:\n\n${currentContent.content}`;
@@ -177,7 +178,7 @@ export async function generateThreadSummary(
     onStatus('Generating thread summary...');
     let userLanguage = 'en';  // Default to English code
     try {
-      const langRecord = await db.table('statusName').where('element').equals('language').first();
+      const langRecord = await statusDb.table('statusName').where('element').equals('language').first();
       if (langRecord?.value) {
         userLanguage = langRecord.value;
         console.log('[Debug] Found language record:', langRecord);
@@ -280,7 +281,7 @@ async function callLLMAPI(
 
       const chunk = new TextDecoder().decode(value);
       chunkCount++;
-      console.log(`[Debug] Received chunk size: ${chunk.length} chars`);
+      //console.log(`[Debug] Received chunk size: ${chunk.length} chars`);
       onStatus(`Processing response chunk ${chunkCount}...`);
       const lines = chunk.split('\n');
       
