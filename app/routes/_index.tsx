@@ -1,5 +1,5 @@
 import type { MetaFunction } from "@remix-run/node";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { 
   Menu, 
   FileUp,
@@ -66,7 +66,12 @@ const getLatestHeadings = async (db: Dexie, beforeId: number) => {
 };
 
 const displayContent = async (content: string, headings: any[]) => {
-  const headingText = headings.map(h => h.content).join('\n\n');
+  const headingText = headings.map(h => {
+    // Remove markdown heading symbols and trim
+    const cleanHeading = h.content.replace(/^#+\s+/, '');
+    // Add proper heading level based on the number of # symbols
+    return `${'#'.repeat(h.heading)} ${cleanHeading}`;
+  }).join('\n\n');
   const finalContent = headingText ? `${headingText}\n\n${content}` : content;
   let parsedContent = await marked(finalContent);
   parsedContent = parsedContent.replace(/\n/g, '<br />');
@@ -104,6 +109,9 @@ export default function Index() {
   const [llmStatus, setLLMStatus] = useState('');
   const [llmError, setLLMError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showHeadingsMenu, setShowHeadingsMenu] = useState(false);
+  const [headings, setHeadings] = useState<any[]>([]);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const handlePrevContent = async () => {
     const db = initializeDb();
@@ -199,6 +207,60 @@ export default function Index() {
         document.getElementById('annotation')!.innerHTML = summary;
       }
     }
+  };
+
+  // Handle clicks outside of menu
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowHeadingsMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Load all headings when menu is opened
+  const loadHeadings = async () => {
+    const db = initializeDb();
+    try {
+      const allHeadings = await db.table('files')
+        .where('heading')
+        .above(0)
+        .sortBy('id');
+      setHeadings(allHeadings);
+    } catch (error) {
+      console.error('Error loading headings:', error);
+    }
+  };
+
+  const handleHeadingClick = async (headingId: number) => {
+    const db = initializeDb();
+    const statusDb = initializeStatusDb();
+    
+    try {
+      // Find the next content after this heading
+      const nextContent = await db.table('files')
+        .where('id')
+        .aboveOrEqual(headingId)
+        .and(item => item.heading === 0)
+        .first();
+
+      if (nextContent) {
+        await statusDb.table('statusName')
+          .where('element')
+          .equals('currentPage')
+          .modify({ value: nextContent.id.toString() });
+        
+        const latestHeadings = await getLatestHeadings(db, nextContent.id);
+        await displayContent(nextContent.content, latestHeadings);
+      }
+    } catch (error) {
+      console.error('Error navigating to heading:', error);
+    }
+    
+    setShowHeadingsMenu(false);
   };
 
   const handleTextFile = (file: File) => {
@@ -391,7 +453,36 @@ export default function Index() {
           <div className="flex flex-row items-center p-4">
             <div className="flex items-center space-x-4">
               <div className="text-2xl font-bold">Parassis Reader</div>
-              <Menu size={24} className="cursor-pointer" onClick={() => console.log('Menu clicked')} />
+              <Menu 
+                size={24} 
+                className="cursor-pointer" 
+                onClick={() => {
+                  setShowHeadingsMenu(!showHeadingsMenu);
+                  if (!showHeadingsMenu) {
+                    loadHeadings();
+                  }
+                }} 
+              />
+              {showHeadingsMenu && (
+                <div 
+                  ref={menuRef}
+                  className="absolute z-50 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg ring-1 ring-black ring-opacity-5 border border-gray-200 dark:border-gray-700 max-h-[80vh] overflow-y-auto"
+                  style={{ top: '50px', left: '100px' }}
+                >
+                  <div className="py-1">
+                    {headings.map((heading) => (
+                      <div
+                        key={heading.id}
+                        className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                        style={{ paddingLeft: `${(heading.heading) * 1}rem` }}
+                        onClick={() => handleHeadingClick(heading.id)}
+                      >
+                        {heading.content}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <FileUp size={24} className="cursor-pointer" onClick={uploadFile} />
               <Save size={24} className="cursor-pointer" onClick={() => console.log('Save clicked')} />
             </div>
