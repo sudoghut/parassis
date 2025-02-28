@@ -156,7 +156,8 @@ export default function Index() {
       );
       setIsProcessing(false);
       if (summary) {
-        document.getElementById('annotation')!.innerHTML = summary;
+        const markedSummary = await marked(summary);
+        document.getElementById('annotation')!.innerHTML = markedSummary;
       }
     }
   };
@@ -204,7 +205,8 @@ export default function Index() {
       );
       setIsProcessing(false);
       if (summary) {
-        document.getElementById('annotation')!.innerHTML = summary;
+        const markedSummary = await marked(summary);
+        document.getElementById('annotation')!.innerHTML = markedSummary;
       }
     }
   };
@@ -436,6 +438,40 @@ export default function Index() {
     setShowTokenInput(true);
   };
 
+  const handleGenerateThreadSummary = async () => {
+    const db = initializeDb();
+    const statusDb = initializeStatusDb();
+    const currentStatus = await statusDb.table('statusName')
+      .where('element').equals('currentPage')
+      .first();
+    
+    if (!currentStatus) return;
+    
+    const currentId = parseInt(currentStatus.value);
+    setIsProcessing(true);
+    document.getElementById('annotation')!.innerHTML = '';
+    
+    const summary = await generateThreadSummary(
+      db,
+      statusDb,
+      currentId,
+      (status: string) => setLLMStatus(status),
+      (error: string) => setLLMError(error),
+      (partial: string) => {
+        const annotation = document.getElementById('annotation');
+        if (annotation) {
+          annotation.innerHTML += partial;
+        }
+      }
+    );
+    setIsProcessing(false);
+    if (summary) {
+      const markedSummary = await marked(summary);
+      console.log('Summary:', markedSummary);
+      document.getElementById('annotation')!.innerHTML = markedSummary;
+    }
+  };
+
   return (
     <>
       {showTokenInput && (
@@ -510,7 +546,11 @@ export default function Index() {
           <div className="flex flex-row items-center p-4">
             <div className="flex items-center space-x-4">
               <div className="text-2xl font-bold">Assistant</div>
-              <LayoutList size={24} />
+              <LayoutList 
+                size={24} 
+                className="cursor-pointer hover:text-blue-500 transition-colors"
+                onClick={handleGenerateThreadSummary}
+              />
               <Wand size={24} />
               <MessageCircle size={24} />
               <SettingsIcon 
@@ -520,7 +560,7 @@ export default function Index() {
               />
             </div>
           </div>
-          <div id="annotation" className="flex flex-row items-center justify-center p-4">
+          <div id="annotation" className="flex flex-col justify-center p-4">
             Annotation content
           </div>
         </div>

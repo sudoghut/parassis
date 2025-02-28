@@ -294,7 +294,7 @@ async function callLLMAPI(
         const jsonData = JSON.parse(jsonStr);
         let content = config.extractResponse(jsonData);
         if (content) {
-          content = content.replace(/\n/g, '<br />');
+          // content = content.replace(/\n/g, '\n<br />');
           fullText += content;
           onPartialResponse(content);
         }
