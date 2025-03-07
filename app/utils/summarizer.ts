@@ -1,4 +1,3 @@
-import { use } from 'marked';
 import { getLLMToken } from './tokenManager';
 import Dexie from 'dexie';
 
@@ -198,15 +197,15 @@ export async function generateThreadSummary(
 
       ${summary}
 
-      Analyze the current content by leveraging relevant references from the previous pages.  
+      Analyze the plot clues in the current content by leveraging relevant references from the previous pages.  
 
       - Summarize the current content in the selected language. The language is ${userLanguage}.
-      - Identify recurring threads or key topics that appear in both the current content and previous pages.  
+      - Identify the plot clues that appear in both the current content and previous pages.  
       - Present the output in an itemized format:  
-        1. For each thread or topic, provide a single sentence summarizing its relevance.  
-        2. Follow this with a detailed analysis explaining how the topic evolves, connects to prior discussions, and contributes to the current content.  
+        1. For each plot clue, provide a single sentence summarizing its relevance.  
+        2. Follow this with an analysis explaining how the plot clue evolves, connects to prior plot, and contributes to the current content.  
       - Ensure that connections to previous pages are direct and relevant. Do not introduce unrelated elements or fabricate connections that do not exist.  
-      - If applicable, highlight how past themes influence or shape the ideas on the current page. 
+      - If applicable, highlight how past thread influence or shape the ideas on the current page. 
     `;
     // print the whole prompt for debugging
     console.log(`[Debug] Prompt length: ${prompt.length} chars\n${prompt}`);

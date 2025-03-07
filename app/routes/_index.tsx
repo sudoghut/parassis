@@ -73,7 +73,7 @@ const displayContent = async (content: string, headings: any[]) => {
     return `${'#'.repeat(h.heading)} ${cleanHeading}`;
   }).join('\n\n');
   const finalContent = headingText ? `${headingText}\n\n${content}` : content;
-  let parsedContent = await marked(finalContent);
+  let parsedContent = await marked(finalContent, { breaks: true });
   parsedContent = parsedContent.replace(/\n/g, '<br />');
   document.getElementById('content')!.innerHTML = parsedContent;
 };
@@ -156,7 +156,7 @@ export default function Index() {
       );
       setIsProcessing(false);
       if (summary) {
-        const markedSummary = await marked(summary);
+        const markedSummary = await marked(summary, { breaks: true });
         document.getElementById('annotation')!.innerHTML = markedSummary;
       }
     }
@@ -205,7 +205,7 @@ export default function Index() {
       );
       setIsProcessing(false);
       if (summary) {
-        const markedSummary = await marked(summary);
+        const markedSummary = await marked(summary, { breaks: true });
         document.getElementById('annotation')!.innerHTML = markedSummary;
       }
     }
@@ -357,7 +357,7 @@ export default function Index() {
             let finalContent = headingText ? `${headingText}\n\n${minIdContent.content}` : minIdContent.content;
             
             console.log('final content:', finalContent);
-            let parsedContent = await marked(finalContent);
+            let parsedContent = await marked(finalContent, { breaks: true });
             parsedContent = parsedContent.replace(/\n/g, '<br />');
 
             console.log('parsed content:', parsedContent);
@@ -466,7 +466,7 @@ export default function Index() {
     );
     setIsProcessing(false);
     if (summary) {
-      const markedSummary = await marked(summary);
+      const markedSummary = await marked(summary, { breaks: true });
       console.log('Summary:', markedSummary);
       document.getElementById('annotation')!.innerHTML = markedSummary;
     }
@@ -484,7 +484,7 @@ export default function Index() {
           db={initializeStatusDb()}
         />
       )}
-      <div className="flex h-screen justify-center">
+      <div className="flex min-h-screen justify-center mb-40">
         <div className="flex flex-col w-[80%]">
           <div className="flex flex-row items-center p-4">
             <div className="flex items-center space-x-4">
