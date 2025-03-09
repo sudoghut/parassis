@@ -1,0 +1,16 @@
+{
+    "rewrites": [
+        {
+            "source": "/volces-api/(.*)",
+            "destination": "https://ark.cn-beijing.volces.com/$1"
+        },
+        {
+            "source": "/anthropic-api/(.*)",
+            "destination": "https://api.anthropic.com/$1"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/"
+        }
+    ]
+}
