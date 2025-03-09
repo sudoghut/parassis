@@ -26,35 +26,42 @@ export const meta: MetaFunction = () => {
 const dbName = 'Parassis';
 const statusDbName = 'ParassisStatusName';
 
-const initializeStatusDb = () => {
-  const db = new Dexie(statusDbName);
-  db.version(1).stores({
-    statusName: 'element, value'  // Schema for storing settings and values
-  }).upgrade(tx => {
-    // Ensure we have a default language setting
-    return tx.table('statusName').put({
-      element: 'language',
-      value: 'English'  // Default to English name instead of code
-    });
-  });
-  return db;
-};
+// Database types
+interface DbFile {
+  id?: number;
+  content: string;
+  heading: number;
+}
 
-const initializeDb = () => {
-  const db = new Dexie(dbName);
-  db.version(1).stores({
-    files: '++id, content, heading'
-  });
-  return db;
-};
+interface StatusDbItem {
+  element: string;
+  value: string;
+}
 
-const getLatestHeadings = async (db: Dexie, beforeId: number) => {
+// Create singleton database instances
+const db = new Dexie(dbName);
+db.version(1).stores({
+  files: '++id, content, heading'
+});
+
+const statusDb = new Dexie(statusDbName);
+statusDb.version(1).stores({
+  statusName: 'element, value'  // Schema for storing settings and values
+}).upgrade(tx => {
+  // Ensure we have a default language setting
+  return tx.table('statusName').put({
+    element: 'language',
+    value: 'English'  // Default to English name instead of code
+  });
+});
+
+const getLatestHeadings = async (beforeId: number): Promise<DbFile[]> => {
   const headings = await db.table('files')
     .where('id').below(beforeId)
-    .and(item => item.heading > 0)
+    .and((item: DbFile) => item.heading > 0)
     .sortBy('id');
 
-  return headings.reduce((acc: any[], curr) => {
+  return headings.reduce((acc: DbFile[], curr) => {
     const existingIndex = acc.findIndex(h => h.heading === curr.heading);
     if (existingIndex >= 0) {
       acc[existingIndex] = curr;
@@ -65,7 +72,7 @@ const getLatestHeadings = async (db: Dexie, beforeId: number) => {
   }, []).sort((a, b) => a.heading - b.heading);
 };
 
-const displayContent = async (content: string, headings: any[]) => {
+const displayContent = async (content: string, headings: DbFile[]) => {
   const headingText = headings.map(h => {
     // Remove markdown heading symbols and trim
     const cleanHeading = h.content.replace(/^#+\s+/, '');
@@ -83,8 +90,6 @@ const displayContent = async (content: string, headings: any[]) => {
 
 export default function Index() {
   const loadCurrentPage = async () => {
-    const db = initializeDb();
-    const statusDb = initializeStatusDb();
     try {
       const currentStatus = await statusDb.table('statusName')
         .where('element').equals('currentPage')
@@ -97,8 +102,8 @@ export default function Index() {
         .where('id').equals(currentId)
         .first();
 
-      if (currentContent) {
-        const latestHeadings = await getLatestHeadings(db, currentId);
+      if (currentContent && currentContent.id !== undefined) {
+        const latestHeadings = await getLatestHeadings(currentContent.id);
         await displayContent(currentContent.content, latestHeadings);
       }
     } catch (error) {
@@ -113,7 +118,7 @@ export default function Index() {
   const [llmError, setLLMError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showHeadingsMenu, setShowHeadingsMenu] = useState(false);
-  const [headings, setHeadings] = useState<any[]>([]);
+  const [headings, setHeadings] = useState<DbFile[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const formatMarkedContent = (markedContent: string): string => {
@@ -124,8 +129,6 @@ export default function Index() {
   };
 
   const handlePrevContent = async () => {
-    const db = initializeDb();
-    const statusDb = initializeStatusDb();
     const currentStatus = await statusDb.table('statusName')
       .where('element').equals('currentPage')
       .first();
@@ -135,16 +138,16 @@ export default function Index() {
     const currentId = parseInt(currentStatus.value);
     const prevContent = await db.table('files')
       .where('heading').equals(0)
-      .and(item => item.id < currentId)
+      .and((item: DbFile) => item.id !== undefined && item.id < currentId)
       .reverse()
       .first();
 
-    if (prevContent) {
+    if (prevContent && prevContent.id !== undefined) {
       await statusDb.table('statusName')
       .where('element').equals('currentPage')
         .modify({ value: prevContent.id.toString() });
       
-      const latestHeadings = await getLatestHeadings(db, prevContent.id);
+      const latestHeadings = await getLatestHeadings(prevContent.id);
       await displayContent(prevContent.content, latestHeadings);
 
       setIsProcessing(true);
@@ -174,8 +177,6 @@ export default function Index() {
   };
 
   const handleNextContent = async () => {
-    const db = initializeDb();
-      const statusDb = initializeStatusDb();
       const currentStatus = await statusDb.table('statusName')
       .where('element').equals('currentPage')
       .first();
@@ -185,16 +186,15 @@ export default function Index() {
     const currentId = parseInt(currentStatus.value);
     const nextContent = await db.table('files')
       .where('heading').equals(0)
-      .and(item => item.id > currentId)
+      .and((item: DbFile) => item.id !== undefined && item.id > currentId)
       .first();
 
-    if (nextContent) {
-      const statusDb = initializeStatusDb();
+    if (nextContent && nextContent.id !== undefined) {
       await statusDb.table('statusName')
         .where('element').equals('currentPage')
         .modify({ value: nextContent.id.toString() });
       
-      const latestHeadings = await getLatestHeadings(db, nextContent.id);
+      const latestHeadings = await getLatestHeadings(nextContent.id);
       await displayContent(nextContent.content, latestHeadings);
 
       setIsProcessing(true);
@@ -237,40 +237,36 @@ export default function Index() {
 
   // Load all headings when menu is opened
   const loadHeadings = async () => {
-    const db = initializeDb();
     try {
       const allHeadings = await db.table('files')
         .where('heading')
         .above(0)
         .sortBy('id');
       setHeadings(allHeadings);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error loading headings:', error);
     }
   };
 
   const handleHeadingClick = async (headingId: number) => {
-    const db = initializeDb();
-    const statusDb = initializeStatusDb();
-    
     try {
       // Find the next content after this heading
       const nextContent = await db.table('files')
         .where('id')
         .aboveOrEqual(headingId)
-        .and(item => item.heading === 0)
+        .and((item: DbFile) => item.id !== undefined && item.heading === 0)
         .first();
 
-      if (nextContent) {
+      if (nextContent && nextContent.id !== undefined) {
         await statusDb.table('statusName')
           .where('element')
           .equals('currentPage')
           .modify({ value: nextContent.id.toString() });
         
-        const latestHeadings = await getLatestHeadings(db, nextContent.id);
+        const latestHeadings = await getLatestHeadings(nextContent.id);
         await displayContent(nextContent.content, latestHeadings);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error navigating to heading:', error);
     }
     
@@ -282,23 +278,20 @@ export default function Index() {
     reader.onload = async (event) => {
       const content = event.target?.result as string;
       if (content) {
-        const db = initializeDb();
         try {
-          await db.open();
           document.getElementById('annotation')!.innerHTML = '';
           // Delete and recreate Parassis database
           await Dexie.delete(dbName);
-          const newDb = initializeDb();
-          await newDb.open();
+          await db.open();
           
-          await newDb.transaction('rw', newDb.table('files'), async () => {
+          await db.transaction('rw', db.table('files'), async () => {
             console.log("Database is ready to use");
             const lines = content.split('\n');
-            let currentContent = [];
+            let currentContent: string[] = [];
             
             const saveContent = async (content: string[], heading: number = 0) => {
               if (content.length > 0) {
-                await newDb.table('files').add({
+                await db.table('files').add({
                   content: content.join('\n'),
                   heading: heading
                 });
@@ -316,7 +309,7 @@ export default function Index() {
                   
                   // Add the heading
                   const headingLevel = headingMatch[1].length;
-                  await newDb.table('files').add({
+                  await db.table('files').add({
                     content: trimmedLine,
                     heading: headingLevel
                   });
@@ -330,17 +323,16 @@ export default function Index() {
             await saveContent(currentContent);
           }).then(async () => {
             // Query for lines with heading 0, ordered by id
-            const linesWithHeadingZero = await newDb.table('files')
+            const linesWithHeadingZero = await db.table('files')
               .where('heading').equals(0)
               .sortBy('id');
           
-            let minIdContent;
+            let minIdContent: DbFile | undefined;
             if (linesWithHeadingZero.length > 0) {
               minIdContent = linesWithHeadingZero[0]; // The first item is the one with the lowest id
               
               // Store initial page in status
-              const statusDb = initializeStatusDb();
-                const minId = await newDb.table('files')
+                const minId = await db.table('files')
                 .where('heading').equals(0)
                 .first()
                 .then(item => item?.id || 1);
@@ -351,9 +343,8 @@ export default function Index() {
                 });
             } else {
               console.log('No lines with heading 0 found. Using the first line instead.');
-              minIdContent = await newDb.table('files').toCollection().first();
+              minIdContent = await db.table('files').toCollection().first();
               if (minIdContent) {
-                const statusDb = initializeStatusDb();
                 await statusDb.table('statusName').put({
                 element: 'currentPage',
                 value: '1'
@@ -361,14 +352,16 @@ export default function Index() {
               }
             }
           
-            // Get all headings before this content
-            const latestHeadings = await getLatestHeadings(newDb, minIdContent.id);
-            await displayContent(minIdContent.content, latestHeadings);
-            console.log('File processed successfully');
-            
-            // Reload current page to ensure proper initialization
-            loadCurrentPage();
-          }).catch(error => {
+            if (minIdContent && minIdContent.id !== undefined) {
+              // Get all headings before this content
+              const latestHeadings = await getLatestHeadings(minIdContent.id);
+              await displayContent(minIdContent.content, latestHeadings);
+              console.log('File processed successfully');
+              
+              // Reload current page to ensure proper initialization
+              loadCurrentPage();
+            }
+          }).catch((error: unknown) => {
             console.error('Error processing file:', error);
           });
         } catch (error) {
@@ -397,8 +390,6 @@ export default function Index() {
 
   useEffect(() => {
     const init = async () => {
-      const db = initializeDb();
-      const statusDb = initializeStatusDb();
       try {
         await db.open();
         await statusDb.open();
@@ -408,10 +399,8 @@ export default function Index() {
         if (error instanceof Error && error.name === 'VersionError') {
           await Dexie.delete(dbName);
           await Dexie.delete(statusDbName);
-          const newDb = initializeDb();
-          const newStatusDb = initializeStatusDb();
-          await newDb.open();
-          await newStatusDb.open();
+          await db.open();
+          await statusDb.open();
         }
       }
       const hasToken = await checkLLMToken(statusDb);
@@ -427,27 +416,23 @@ export default function Index() {
   }, []);
 
   const handleTokenSubmit = async (provider: string, token: string, language: string) => {
-    const statusDb = initializeStatusDb();
     await saveLLMToken(statusDb, provider, token, language);
     setShowTokenInput(false);
     setTokenInfo({ provider, token, language });
   };
 
   const handleSettingsClick = async () => {
-    const statusDb = initializeStatusDb();
     const info = await getLLMToken(statusDb);
     setTokenInfo(info);
     setShowTokenInput(true);
   };
 
   const handleGenerateThreadSummary = async () => {
-    const db = initializeDb();
-    const statusDb = initializeStatusDb();
     const currentStatus = await statusDb.table('statusName')
       .where('element').equals('currentPage')
       .first();
     
-    // if (!currentStatus) return;
+    if (!currentStatus) return;
     
     const currentId = parseInt(currentStatus.value);
     setIsProcessing(true);
@@ -487,7 +472,7 @@ export default function Index() {
           initialProvider={tokenInfo.provider}
           initialToken={tokenInfo.token}
           initialLanguage={tokenInfo.language}
-          db={initializeStatusDb()}
+          db={statusDb}
         />
       )}
       <div className="flex min-h-screen justify-center mb-40">
@@ -517,7 +502,7 @@ export default function Index() {
                         key={heading.id}
                         className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                         style={{ paddingLeft: `${(heading.heading) * 1}rem` }}
-                        onClick={() => handleHeadingClick(heading.id)}
+                        onClick={() => heading.id !== undefined && handleHeadingClick(heading.id)}
                       >
                         {heading.content}
                       </div>
