@@ -4,9 +4,6 @@ import {
   Menu, 
   FileUp,
   LayoutList,
-  Wand,
-  MessageCircle,
-  Save,
   Settings as SettingsIcon,
 } from "lucide-react";
 import Dexie from "dexie";
