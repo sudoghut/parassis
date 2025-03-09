@@ -17,13 +17,16 @@ export const LLMStatus: React.FC<LLMStatusProps> = ({
   useEffect(() => {
     if (status || error || isLoading) {
       setIsVisible(true);
+      
       // Clear any existing timeout
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       
-      // Set new timeout
-      timeoutRef.current = setTimeout(() => {
-        setIsVisible(false);
-      }, 2000);
+      // Only set timeout if status is "Thread summary generation complete"
+      if (status === "Thread summary generation complete") {
+        timeoutRef.current = setTimeout(() => {
+          setIsVisible(false);
+        }, 5000);
+      }
     }
 
     // Cleanup timeout on unmount or when dependencies change

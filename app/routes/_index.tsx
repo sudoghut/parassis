@@ -72,6 +72,9 @@ const displayContent = async (content: string, headings: any[]) => {
     // Add proper heading level based on the number of # symbols
     return `${'#'.repeat(h.heading)} ${cleanHeading}`;
   }).join('\n\n');
+  if (!content.includes('\n\n')) {
+    content = content.replace(/\n/g, '\n\n');
+  }
   const finalContent = headingText ? `${headingText}\n\n${content}` : content;
   let parsedContent = await marked(finalContent, { breaks: true });
   parsedContent = parsedContent.replace(/\n/g, '<br />');
@@ -351,17 +354,7 @@ export default function Index() {
           
             // Get all headings before this content
             const latestHeadings = await getLatestHeadings(newDb, minIdContent.id);
-
-            // Combine headings with content
-            const headingText = latestHeadings.map(h => h.content).join('\n');
-            let finalContent = headingText ? `${headingText}\n\n${minIdContent.content}` : minIdContent.content;
-            
-            console.log('final content:', finalContent);
-            let parsedContent = await marked(finalContent, { breaks: true });
-            parsedContent = parsedContent.replace(/\n/g, '<br />');
-
-            console.log('parsed content:', parsedContent);
-            document.getElementById('content')!.innerHTML = parsedContent;
+            await displayContent(minIdContent.content, latestHeadings);
             console.log('File processed successfully');
             
             // Reload current page to ensure proper initialization
@@ -466,9 +459,16 @@ export default function Index() {
     );
     setIsProcessing(false);
     if (summary) {
-      const markedSummary = await marked(summary, { breaks: true });
+      console.log('Summary before marked:', summary);
+      let markedSummary = await marked(summary, { breaks: true });
+      markedSummary = markedSummary.replace(/<\/ul>/g, '</ul><br />');
+      // replace (</h\d>)(\d is any number) by group1 + <br /> to ensure proper spacing
+      markedSummary = markedSummary.replace(/(<\/?h\d>)/g, '$1<br />');
+      
       console.log('Summary:', markedSummary);
       document.getElementById('annotation')!.innerHTML = markedSummary;
+    } else {
+      console.log('No summary generated');
     }
   };
 
@@ -523,7 +523,7 @@ export default function Index() {
               <Save size={24} className="cursor-pointer" onClick={() => console.log('Save clicked')} />
             </div>
           </div>
-          <div id="content" className="flex flex-col items-center justify-center p-4">
+          <div id="content" className="flex flex-col items-center justify-center p-4 text-xl">
             Content
           </div>
           <div className="flex flex-row items-center justify-between p-4">
@@ -560,7 +560,7 @@ export default function Index() {
               />
             </div>
           </div>
-          <div id="annotation" className="flex flex-col justify-center p-4">
+          <div id="annotation" className="flex flex-col justify-center p-4  text-xl">
             Annotation content
           </div>
         </div>

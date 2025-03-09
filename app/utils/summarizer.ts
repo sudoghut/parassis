@@ -24,29 +24,12 @@ const LLM_CONFIGS: Record<LLMProvider, LLMConfig> = {
     formatRequest: (prompt) => ({
       model: "deepseek-v3-241226",
       messages: [
-        { role: "system", content: "你是人工智能助手." },
+        { role: "system", content: "You are an expert in analyzing plot cues from text" },
         { role: "user", content: prompt }
-      ]
+      ],
+      stream: true
     }),
-    extractResponse: (data) => {
-      try {
-        if (!data) {
-          throw new Error('Empty response from Deepseek API');
-        }
-        if (typeof data !== 'object') {
-          throw new Error(`Invalid response type from Deepseek API: ${typeof data}`);
-        }
-        if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-          throw new Error('No choices in Deepseek API response');
-        }
-        if (!data.choices[0].message) {
-          throw new Error('No message in Deepseek API response choice');
-        }
-        return data.choices[0].message.content || '';
-      } catch (error) {
-        throw new Error(`Failed to extract Deepseek response: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
+    extractResponse: (data) => data.choices[0].delta.content || ''
   },
   openai: {
     endpoint: 'https://api.openai.com/v1/chat/completions',
@@ -84,29 +67,12 @@ const LLM_CONFIGS: Record<LLMProvider, LLMConfig> = {
     formatRequest: (prompt) => ({
       model: "deepseek-chat",
       messages: [
-        { role: "system", content: "You are a helpful assistant." },
+        { role: "system", content: "You are an expert in analyzing plot cues from text" },
         { role: "user", content: prompt }
-      ]
+      ],
+      stream: true
     }),
-    extractResponse: (data) => {
-      try {
-        if (!data) {
-          throw new Error('Empty response from Deepseek API');
-        }
-        if (typeof data !== 'object') {
-          throw new Error(`Invalid response type from Deepseek API: ${typeof data}`);
-        }
-        if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-          throw new Error('No choices in Deepseek API response');
-        }
-        if (!data.choices[0].message) {
-          throw new Error('No message in Deepseek API response choice');
-        }
-        return data.choices[0].message.content || '';
-      } catch (error) {
-        throw new Error(`Failed to extract Deepseek response: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
+    extractResponse: (data) => data.choices[0].delta.content || ''
   }
 };
 
@@ -246,29 +212,6 @@ async function callLLMAPI(
       throw new Error(`LLM API call failed: ${response.status} ${response.statusText}\n${errorData}`);
     }
 
-    // Handle non-streaming responses (Volcengine, Deepseek)
-    if (provider === 'volcengine' || provider === 'deepseek') {
-      const rawResponse = await response.text();
-      console.log(`[Debug] Raw API Response:`, rawResponse);
-      
-      let content: string;
-      try {
-        const jsonData = JSON.parse(rawResponse);
-        console.log(`[Debug] Parsed JSON Data:`, JSON.stringify(jsonData, null, 2));
-        content = config.extractResponse(jsonData);
-        onPartialResponse(content);
-        console.log(`[Debug] Complete response length: ${content.length} chars`);
-      } catch (error: unknown) {
-        const parseError = error instanceof Error ? error : new Error(String(error));
-        console.error('[Debug] JSON Parse Error:', parseError);
-        console.error('[Debug] Raw Response that caused error:', rawResponse);
-        throw new Error(`Failed to parse Deepseek response: ${parseError.message}\nRaw response: ${rawResponse}`);
-      }
-      onStatus('Thread summary generation complete');
-      return content;
-    }
-
-    // Handle streaming responses (OpenAI, etc.)
     const reader = response.body?.getReader();
     if (!reader) throw new Error('No response body');
 
@@ -293,7 +236,6 @@ async function callLLMAPI(
         const jsonData = JSON.parse(jsonStr);
         let content = config.extractResponse(jsonData);
         if (content) {
-          // content = content.replace(/\n/g, '\n<br />');
           fullText += content;
           onPartialResponse(content);
         }
@@ -305,6 +247,7 @@ async function callLLMAPI(
     }
 
     console.log(`[Debug] Complete response length: ${fullText.length} chars`);
+    console.log(`[Debug] The response is:\n${fullText}`);
     onStatus('Thread summary generation complete');
     return fullText;
   } catch (error) {
