@@ -116,6 +116,13 @@ export default function Index() {
   const [headings, setHeadings] = useState<any[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const formatMarkedContent = (markedContent: string): string => {
+    let formatted = markedContent;
+    formatted = formatted.replace(/<\/ul>/g, '</ul><br />');
+    formatted = formatted.replace(/(<\/?h\d>)/g, '$1<br />');
+    return formatted;
+  };
+
   const handlePrevContent = async () => {
     const db = initializeDb();
     const statusDb = initializeStatusDb();
@@ -159,7 +166,8 @@ export default function Index() {
       );
       setIsProcessing(false);
       if (summary) {
-        const markedSummary = await marked(summary, { breaks: true });
+        let markedSummary = await marked(summary, { breaks: true });
+        markedSummary = formatMarkedContent(markedSummary);
         document.getElementById('annotation')!.innerHTML = markedSummary;
       }
     }
@@ -208,7 +216,8 @@ export default function Index() {
       );
       setIsProcessing(false);
       if (summary) {
-        const markedSummary = await marked(summary, { breaks: true });
+        let markedSummary = await marked(summary, { breaks: true });
+        markedSummary = formatMarkedContent(markedSummary);
         document.getElementById('annotation')!.innerHTML = markedSummary;
       }
     }
@@ -438,7 +447,7 @@ export default function Index() {
       .where('element').equals('currentPage')
       .first();
     
-    if (!currentStatus) return;
+    // if (!currentStatus) return;
     
     const currentId = parseInt(currentStatus.value);
     setIsProcessing(true);
@@ -461,10 +470,7 @@ export default function Index() {
     if (summary) {
       console.log('Summary before marked:', summary);
       let markedSummary = await marked(summary, { breaks: true });
-      markedSummary = markedSummary.replace(/<\/ul>/g, '</ul><br />');
-      // replace (</h\d>)(\d is any number) by group1 + <br /> to ensure proper spacing
-      markedSummary = markedSummary.replace(/(<\/?h\d>)/g, '$1<br />');
-      
+      markedSummary = formatMarkedContent(markedSummary);
       console.log('Summary:', markedSummary);
       document.getElementById('annotation')!.innerHTML = markedSummary;
     } else {
@@ -523,7 +529,7 @@ export default function Index() {
               <Save size={24} className="cursor-pointer" onClick={() => console.log('Save clicked')} />
             </div>
           </div>
-          <div id="content" className="flex flex-col items-center justify-center p-4 text-xl">
+          <div id="content" className="flex flex-col justify-center p-4 text-xl">
             Content
           </div>
           <div className="flex flex-row items-center justify-between p-4">
