@@ -16,6 +16,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/volces-api/, ''),
         secure: false
+      },
+      '/anthropic-api': {
+        target: 'https://api.anthropic.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/anthropic-api/, ''),
+        secure: false
       }
     }
   },

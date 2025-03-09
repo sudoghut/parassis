@@ -526,7 +526,7 @@ export default function Index() {
                 </div>
               )}
               <FileUp size={24} className="cursor-pointer" onClick={uploadFile} />
-              <Save size={24} className="cursor-pointer" onClick={() => console.log('Save clicked')} />
+              {/* <Save size={24} className="cursor-pointer" onClick={() => console.log('Save clicked')} /> */}
             </div>
           </div>
           <div id="content" className="flex flex-col justify-center p-4 text-xl">
@@ -557,8 +557,8 @@ export default function Index() {
                 className="cursor-pointer hover:text-blue-500 transition-colors"
                 onClick={handleGenerateThreadSummary}
               />
-              <Wand size={24} />
-              <MessageCircle size={24} />
+              {/* <Wand size={24} />
+              <MessageCircle size={24} /> */}
               <SettingsIcon 
                 size={24} 
                 className="cursor-pointer hover:text-blue-500 transition-colors"
@@ -570,6 +570,9 @@ export default function Index() {
             Annotation content
           </div>
         </div>
+      </div>
+      <div className="fixed bottom-0 left-0 right-0 text-center p-4">
+        <p className="text-sm text-gray-600 dark:text-gray-400">By oopus</p>
       </div>
       <LLMStatus status={llmStatus} error={llmError} isLoading={isProcessing} />
     </>

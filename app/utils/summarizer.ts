@@ -29,7 +29,13 @@ const LLM_CONFIGS: Record<LLMProvider, LLMConfig> = {
       ],
       stream: true
     }),
-    extractResponse: (data) => data.choices[0].delta.content || ''
+    extractResponse: (data) => {
+      if (!data?.choices?.[0]?.delta?.content && data?.type === 'content_block_start') {
+        // Handle the new response format
+        return data.content_block?.text || '';
+      }
+      return data.choices?.[0]?.delta?.content || '';
+    }
   },
   openai: {
     endpoint: 'https://api.openai.com/v1/chat/completions',
@@ -42,21 +48,35 @@ const LLM_CONFIGS: Record<LLMProvider, LLMConfig> = {
       messages: [{ role: "user", content: prompt }],
       stream: true
     }),
-    extractResponse: (data) => data.choices[0].delta.content || ''
+    extractResponse: (data) => {
+      if (!data?.choices?.[0]?.delta?.content && data?.type === 'content_block_start') {
+        // Handle the new response format
+        return data.content_block?.text || '';
+      }
+      return data.choices?.[0]?.delta?.content || '';
+    }
   },
   anthropic: {
-    endpoint: 'https://api.anthropic.com/v1/messages',
+    endpoint: '/anthropic-api/v1/messages',
     headers: (token) => ({
       'Content-Type': 'application/json',
       'x-api-key': token,
-      'anthropic-version': '2023-06-01'
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'yes'
     }),
     formatRequest: (prompt) => ({
-      model: "claude-2",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }]
+      model: "claude-3-5-haiku-20241022",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 8000,
+      stream: true
     }),
-    extractResponse: (data) => data.content[0].text
+    extractResponse: (data) => {
+      if (!data?.delta?.text && data?.type === 'content_block_start') {
+        // Handle the new response format
+        return data.content_block?.text || '';
+      }
+      return data.delta?.text || '';
+    }
   },
   deepseek: {
     endpoint: 'https://api.deepseek.com/chat/completions',
@@ -72,7 +92,13 @@ const LLM_CONFIGS: Record<LLMProvider, LLMConfig> = {
       ],
       stream: true
     }),
-    extractResponse: (data) => data.choices[0].delta.content || ''
+    extractResponse: (data) => {
+      if (!data?.choices?.[0]?.delta?.content && data?.type === 'content_block_start') {
+        // Handle the new response format
+        return data.content_block?.text || '';
+      }
+      return data.choices?.[0]?.delta?.content || '';
+    }
   }
 };
 
@@ -192,6 +218,8 @@ async function callLLMAPI(
 ): Promise<string> {
   const provider = tokenInfo.provider as LLMProvider;
   const config = LLM_CONFIGS[provider];
+  console.log(`[Debug] Using LLM provider: ${provider}`);
+  console.log(`[Debug] LLM_CONFIGS: ${JSON.stringify(LLM_CONFIGS)}`);
   
   if (!config) {
     throw new Error(`Unsupported LLM provider: ${provider}`);
@@ -233,14 +261,15 @@ async function callLLMAPI(
           if (jsonStr === '[DONE]') continue;
           
           try {
-        const jsonData = JSON.parse(jsonStr);
-        let content = config.extractResponse(jsonData);
-        if (content) {
-          fullText += content;
-          onPartialResponse(content);
-        }
+            const jsonData = JSON.parse(jsonStr);
+            let content = config.extractResponse(jsonData);
+            if (content) {
+              fullText += content;
+              onPartialResponse(content);
+            }
           } catch (e) {
-        console.warn('Failed to parse JSON:', e);
+            console.warn('Failed to parse JSON:', e);
+            console.log(`[Debug] JSON string: ${jsonStr}`);
           }
         }
       }
