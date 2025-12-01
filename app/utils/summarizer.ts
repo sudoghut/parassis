@@ -245,7 +245,20 @@ export async function chatWithAI(
 
     if (!response.ok) {
       const errorData = await response.text();
-      throw new Error(`LLM API call failed: ${response.status} ${response.statusText}\n${errorData}`);
+      let errorMessage = `LLM API call failed: ${response.status} ${response.statusText}`;
+
+      // Handle common authentication errors
+      if (response.status === 401 || response.status === 403) {
+        errorMessage = 'Invalid API token. Please check your token in settings.';
+      } else if (response.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again later.';
+      } else if (response.status >= 500) {
+        errorMessage = 'LLM service is currently unavailable. Please try again later.';
+      } else {
+        errorMessage += `\n${errorData}`;
+      }
+
+      throw new Error(errorMessage);
     }
 
     const reader = response.body?.getReader();
@@ -318,7 +331,20 @@ async function callLLMAPI(
 
     if (!response.ok) {
       const errorData = await response.text();
-      throw new Error(`LLM API call failed: ${response.status} ${response.statusText}\n${errorData}`);
+      let errorMessage = `LLM API call failed: ${response.status} ${response.statusText}`;
+
+      // Handle common authentication errors
+      if (response.status === 401 || response.status === 403) {
+        errorMessage = 'Invalid API token. Please check your token in settings.';
+      } else if (response.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again later.';
+      } else if (response.status >= 500) {
+        errorMessage = 'LLM service is currently unavailable. Please try again later.';
+      } else {
+        errorMessage += `\n${errorData}`;
+      }
+
+      throw new Error(errorMessage);
     }
 
     const reader = response.body?.getReader();

@@ -122,6 +122,7 @@ export default function Index() {
 
   const [showTokenInput, setShowTokenInput] = useState(false);
   const [tokenInfo, setTokenInfo] = useState({ provider: '', token: '', language: '' });
+  const [hasValidToken, setHasValidToken] = useState(false);
   const [llmStatus, setLLMStatus] = useState('');
   const [llmError, setLLMError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -176,17 +177,44 @@ export default function Index() {
       setChatHistory([]);
 
       if (autoSummarizeOnPageTurn) {
+        // Clear previous error state
+        setLLMError('');
         setIsProcessing(true);
+        let accumulatedText = '';
         const summary = await generateThreadSummary(
           db,
           statusDb,
           prevContent.id,
           (status: string) => setLLMStatus(status),
           (error: string) => setLLMError(error),
-          (partial: string) => {
+          async (partial: string) => {
+            // Accumulate the partial text
+            accumulatedText += partial;
+
+            // Render markdown in real-time
             const annotation = document.getElementById('annotation');
             if (annotation) {
-              annotation.innerHTML += partial;
+              try {
+                // Check if there are unclosed LaTeX delimiters
+                const singleDollarCount = (accumulatedText.match(/(?<!\$)\$(?!\$)/g) || []).length;
+                const doubleDollarCount = (accumulatedText.match(/\$\$/g) || []).length;
+
+                // If we have incomplete LaTeX, temporarily close them for rendering
+                let textToRender = accumulatedText;
+                if (singleDollarCount % 2 !== 0) {
+                  textToRender = accumulatedText + '$';
+                }
+                if (doubleDollarCount % 2 !== 0) {
+                  textToRender = accumulatedText + '$$';
+                }
+
+                let markedContent = await marked(textToRender, { breaks: true });
+                markedContent = formatMarkedContent(markedContent);
+                annotation.innerHTML = markedContent;
+              } catch (e) {
+                // If markdown parsing fails, just show raw text
+                annotation.innerHTML = accumulatedText;
+              }
             }
           }
         );
@@ -235,17 +263,44 @@ export default function Index() {
       setChatHistory([]);
 
       if (autoSummarizeOnPageTurn) {
+        // Clear previous error state
+        setLLMError('');
         setIsProcessing(true);
+        let accumulatedText = '';
         const summary = await generateThreadSummary(
           db,
           statusDb,
           nextContent.id,
           (status: string) => setLLMStatus(status),
           (error: string) => setLLMError(error),
-          (partial: string) => {
+          async (partial: string) => {
+            // Accumulate the partial text
+            accumulatedText += partial;
+
+            // Render markdown in real-time
             const annotation = document.getElementById('annotation');
             if (annotation) {
-              annotation.innerHTML += partial;
+              try {
+                // Check if there are unclosed LaTeX delimiters
+                const singleDollarCount = (accumulatedText.match(/(?<!\$)\$(?!\$)/g) || []).length;
+                const doubleDollarCount = (accumulatedText.match(/\$\$/g) || []).length;
+
+                // If we have incomplete LaTeX, temporarily close them for rendering
+                let textToRender = accumulatedText;
+                if (singleDollarCount % 2 !== 0) {
+                  textToRender = accumulatedText + '$';
+                }
+                if (doubleDollarCount % 2 !== 0) {
+                  textToRender = accumulatedText + '$$';
+                }
+
+                let markedContent = await marked(textToRender, { breaks: true });
+                markedContent = formatMarkedContent(markedContent);
+                annotation.innerHTML = markedContent;
+              } catch (e) {
+                // If markdown parsing fails, just show raw text
+                annotation.innerHTML = accumulatedText;
+              }
             }
           }
         );
@@ -481,6 +536,7 @@ export default function Index() {
       }
       const info = await getLLMToken(statusDb);
       setTokenInfo(info);
+      setHasValidToken(hasToken && !!info.token);
       loadCurrentPage();
     };
 
@@ -491,6 +547,7 @@ export default function Index() {
     await saveLLMToken(statusDb, provider, token, language);
     setShowTokenInput(false);
     setTokenInfo({ provider, token, language });
+    setHasValidToken(!!token);
 
     // Reload autoSummarizeOnPageTurn from DB after settings are saved
     try {
@@ -526,6 +583,8 @@ export default function Index() {
 
     const currentId = parseInt(currentStatus.value);
 
+    // Clear previous error state
+    setLLMError('');
     setIsProcessing(true);
     const annotationEl = document.getElementById('annotation');
     if (annotationEl) {
@@ -601,6 +660,8 @@ export default function Index() {
     const newHistory = [...chatHistory, { role: 'user' as const, content: userMessage }];
     setChatHistory(newHistory);
 
+    // Clear previous error state
+    setLLMError('');
     setIsChatProcessing(true);
     setIsProcessing(true);
 
@@ -769,26 +830,26 @@ export default function Index() {
           <div className="flex flex-row items-center p-4">
             <div className="flex items-center space-x-4">
               <div className="text-2xl font-bold">Assistant</div>
-              <Tooltip content="Generate summary for current page">
+              <Tooltip content={!hasValidToken ? "Please set API token in settings" : "Generate summary for current page"}>
                 <LayoutList
                   size={24}
-                  className={`cursor-pointer hover:text-blue-500 transition-colors ${
-                    isProcessing || isChatProcessing
+                  className={`transition-colors ${
+                    !hasValidToken || isProcessing || isChatProcessing
                       ? 'opacity-50 cursor-not-allowed'
-                      : ''
+                      : 'cursor-pointer hover:text-blue-500'
                   }`}
-                  onClick={isProcessing || isChatProcessing ? undefined : handleGenerateThreadSummary}
+                  onClick={!hasValidToken || isProcessing || isChatProcessing ? undefined : handleGenerateThreadSummary}
                 />
               </Tooltip>
-              <Tooltip content="Open or close chat with AI">
+              <Tooltip content={!hasValidToken ? "Please set API token in settings" : "Open or close chat with AI"}>
                 <MessageCircle
                   size={24}
-                  className={`cursor-pointer hover:text-blue-500 transition-colors ${
-                    isProcessing || isChatProcessing
+                  className={`transition-colors ${
+                    !hasValidToken || isProcessing || isChatProcessing
                       ? 'opacity-50 cursor-not-allowed'
-                      : ''
+                      : 'cursor-pointer hover:text-blue-500'
                   }`}
-                  onClick={isProcessing || isChatProcessing ? undefined : handleChatToggle}
+                  onClick={!hasValidToken || isProcessing || isChatProcessing ? undefined : handleChatToggle}
                 />
               </Tooltip>
               <Tooltip content="Open settings">
