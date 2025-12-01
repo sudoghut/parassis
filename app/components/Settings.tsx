@@ -29,7 +29,7 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
   const [provider, setProvider] = useState(initialProvider);
   const [token, setToken] = useState(initialToken);
   const [language, setLanguage] = useState(initialLanguage);
-  const [autoSummarizeOnPageTurn, setAutoSummarizeOnPageTurn] = useState(true);
+  const [autoSummarizeOnPageTurn, setAutoSummarizeOnPageTurn] = useState(false);
 
   useEffect(() => {
     // Load initial language and auto summarize setting
@@ -51,12 +51,12 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
         } else if (autoRecord?.value === 'false') {
           setAutoSummarizeOnPageTurn(false);
         } else {
-          // Default to true and persist if missing/invalid
-          setAutoSummarizeOnPageTurn(true);
+          // Default to false and persist if missing/invalid
+          setAutoSummarizeOnPageTurn(false);
           if (!autoRecord) {
             await db.table('statusName').put({
               element: 'autoSummarizeOnPageTurn',
-              value: 'true',
+              value: 'false',
             });
           }
         }

@@ -129,7 +129,7 @@ export default function Index() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showHeadingsMenu, setShowHeadingsMenu] = useState(false);
   const [headings, setHeadings] = useState<DbFile[]>([]);
-  const [autoSummarizeOnPageTurn, setAutoSummarizeOnPageTurn] = useState(true);
+  const [autoSummarizeOnPageTurn, setAutoSummarizeOnPageTurn] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Chat states
@@ -539,23 +539,23 @@ export default function Index() {
         }
       }
 
-      // Load autoSummarizeOnPageTurn setting (default: true)
+      // Load autoSummarizeOnPageTurn setting (default: false)
       try {
         const autoRecord = await statusDb.table('statusName')
           .where('element').equals('autoSummarizeOnPageTurn')
           .first();
         console.log('[Debug] Index init: autoSummarizeOnPageTurn record =', autoRecord);
 
-        if (autoRecord?.value === 'false') {
-          setAutoSummarizeOnPageTurn(false);
-          console.log('[Debug] Index init: autoSummarizeOnPageTurn state set to', false);
-        } else {
+        if (autoRecord?.value === 'true') {
           setAutoSummarizeOnPageTurn(true);
           console.log('[Debug] Index init: autoSummarizeOnPageTurn state set to', true);
+        } else {
+          setAutoSummarizeOnPageTurn(false);
+          console.log('[Debug] Index init: autoSummarizeOnPageTurn state set to', false);
           if (!autoRecord) {
             await statusDb.table('statusName').put({
               element: 'autoSummarizeOnPageTurn',
-              value: 'true',
+              value: 'false',
             });
           }
         }
