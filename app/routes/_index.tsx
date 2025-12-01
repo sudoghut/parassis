@@ -1,13 +1,15 @@
 import type { MetaFunction } from "@remix-run/node";
 import { useEffect, useState, useRef } from "react";
-import { 
-  Menu, 
+import {
+  Menu,
   FileUp,
   LayoutList,
   Settings as SettingsIcon,
 } from "lucide-react";
 import Dexie from "dexie";
 import { marked } from "marked";
+import markedKatex from "marked-katex-extension";
+import "katex/dist/katex.min.css";
 import Settings from '../components/Settings';
 import { LLMStatus } from '../components/LLMStatus';
 import { checkLLMToken, saveLLMToken, getLLMToken } from '../utils/tokenManager';
@@ -68,6 +70,20 @@ const getLatestHeadings = async (beforeId: number): Promise<DbFile[]> => {
     return acc;
   }, []).sort((a, b) => a.heading - b.heading);
 };
+
+marked.use(
+  markedKatex({
+    throwOnError: false,
+    output: "html",
+  })
+);
+
+marked.use(
+  markedKatex({
+    throwOnError: false,
+    output: "html",
+  })
+);
 
 const displayContent = async (content: string, headings: DbFile[]) => {
   const headingText = headings.map(h => {
