@@ -560,19 +560,20 @@ export default function Index() {
           <div className="flex flex-row items-center justify-between p-4">
             <div className="flex space-x-4 justify-center items-center w-full">
               <div 
-                className="flex-1 py-2 px-4 text-center cursor-pointer border-r"
+                className="flex-1 py-2 px-4 text-center cursor-pointer border border-gray-300 dark:border-gray-700 rounded-md"
                 onClick={handlePrevContent}
               >
                 &lt;&lt;&lt; Prev
               </div>
               <div 
-                className="flex-1 py-2 px-4 text-center cursor-pointer"
+                className="flex-1 py-2 px-4 text-center cursor-pointer border border-gray-300 dark:border-gray-700 rounded-md"
                 onClick={handleNextContent}
               >
                 Next &gt;&gt;&gt;
               </div>
             </div>
           </div>
+
 
           <div className="flex flex-row items-center p-4">
             <div className="flex items-center space-x-4">
@@ -596,7 +597,7 @@ export default function Index() {
           </div>
         </div>
       </div>
-      <div className="fixed bottom-0 left-0 right-0 text-center p-4">
+      <div className="fixed bottom-0 left-0 right-0 text-center p-4 bg-white/90 dark:bg-gray-900/90 border-t border-gray-200 dark:border-gray-800 backdrop-blur">
         <p className="text-sm text-gray-600 dark:text-gray-400">By oopus</p>
       </div>
       <LLMStatus status={llmStatus} error={llmError} isLoading={isProcessing} />
