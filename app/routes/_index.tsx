@@ -665,15 +665,16 @@ export default function Index() {
           <div className="flex flex-row items-center p-4">
             <div className="flex items-center space-x-4">
               <div className="text-2xl font-bold">Parassis Reader</div>
-              <Menu 
-                size={24} 
-                className="cursor-pointer" 
+              <Menu
+                size={24}
+                className="cursor-pointer"
                 onClick={() => {
                   setShowHeadingsMenu(!showHeadingsMenu);
                   if (!showHeadingsMenu) {
                     loadHeadings();
                   }
-                }} 
+                }}
+                aria-label="Show document headings"
               />
               {showHeadingsMenu && (
                 <div 
@@ -695,7 +696,12 @@ export default function Index() {
                   </div>
                 </div>
               )}
-              <FileUp size={24} className="cursor-pointer" onClick={uploadFile} />
+              <FileUp
+                size={24}
+                className="cursor-pointer"
+                onClick={uploadFile}
+                aria-label="Upload a .txt or .md file"
+              />
             </div>
           </div>
           <div id="content" className="flex flex-col justify-center p-4 text-xl">
@@ -737,6 +743,7 @@ export default function Index() {
                     : ''
                 }`}
                 onClick={isProcessing || isChatProcessing ? undefined : handleGenerateThreadSummary}
+                aria-label="Generate summary for current page"
               />
               <MessageCircle
                 size={24}
@@ -746,11 +753,13 @@ export default function Index() {
                     : ''
                 }`}
                 onClick={isProcessing || isChatProcessing ? undefined : handleChatToggle}
+                aria-label="Open or close chat with AI"
               />
               <SettingsIcon
                 size={24}
                 className="cursor-pointer hover:text-blue-500 transition-colors"
                 onClick={handleSettingsClick}
+                aria-label="Open settings"
               />
             </div>
           </div>
