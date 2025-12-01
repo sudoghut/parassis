@@ -378,6 +378,10 @@ export default function Index() {
         .above(0)
         .sortBy('id');
       setHeadings(allHeadings);
+      // If no headings found, close the menu
+      if (allHeadings.length === 0) {
+        setShowHeadingsMenu(false);
+      }
     } catch (error: unknown) {
       console.error('Error loading headings:', error);
     }
