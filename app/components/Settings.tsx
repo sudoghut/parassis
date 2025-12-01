@@ -115,30 +115,20 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
     setAutoSummarizeOnPageTurn(enabled);
   };
 
-  const handleRemoveUploadedText = async () => {
-    try {
-      // Remove uploaded text: clear files table
+  const handleRemoveDataAndConfiguration = async () => {
+    if (confirm('Are you sure you want to remove all data and configuration? This will clear all uploaded content, settings, and API tokens. This action cannot be undone.')) {
       try {
-        await db.table('files').clear();
-      } catch (error) {
-        console.error('Error clearing files table:', error);
-      }
+        // Delete all IndexedDB databases
+        await Dexie.delete('Parassis');
+        await Dexie.delete('ParassisStatusName');
 
-      // Remove currentPage from statusName
-      try {
-        await db.table('statusName')
-          .where('element')
-          .equals('currentPage')
-          .delete();
+        console.log('All databases deleted successfully');
+        alert('All data and configuration have been removed. The page will now reload.');
+        window.location.reload();
       } catch (error) {
-        console.error('Error removing currentPage from statusName:', error);
+        console.error('Error removing data and configuration:', error);
+        alert('Failed to remove data and configuration.');
       }
-
-      alert('Uploaded text has been removed.');
-      window.location.reload();
-    } catch (error) {
-      console.error('Error removing uploaded text:', error);
-      alert('Failed to remove uploaded text.');
     }
   };
 
@@ -217,10 +207,10 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
 
           <button
             type="button"
-            onClick={handleRemoveUploadedText}
+            onClick={handleRemoveDataAndConfiguration}
             className="w-full mb-3 bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition-all duration-200"
           >
-            Remove uploaded text
+            Remove data and configuration
           </button>
 
           <button

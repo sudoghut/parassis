@@ -6,6 +6,7 @@ import {
   LayoutList,
   Settings as SettingsIcon,
   MessageCircle,
+  Trash2,
 } from "lucide-react";
 import Dexie from "dexie";
 import { marked } from "marked";
@@ -490,6 +491,38 @@ export default function Index() {
     input.click();
   };
 
+  const handleRemoveContent = async () => {
+    if (confirm('Are you sure you want to remove all uploaded content? This action cannot be undone.')) {
+      try {
+        // Clear content display
+        const contentEl = document.getElementById('content');
+        if (contentEl) {
+          contentEl.innerHTML = 'Content';
+        }
+
+        // Clear annotation
+        const annotationEl = document.getElementById('annotation');
+        if (annotationEl) {
+          annotationEl.innerHTML = '';
+        }
+
+        // Clear chat history
+        setChatHistory([]);
+
+        // Delete the Parassis database
+        await Dexie.delete(dbName);
+        console.log('Database deleted successfully');
+
+        // Recreate empty database
+        await db.open();
+        console.log('Database recreated');
+      } catch (error) {
+        console.error('Error removing content:', error);
+        setLLMError('Error removing content');
+      }
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -793,8 +826,15 @@ export default function Index() {
               <Tooltip content="Upload a .txt or .md file">
                 <FileUp
                   size={24}
-                  className="cursor-pointer"
+                  className="cursor-pointer hover:text-blue-500 transition-colors"
                   onClick={uploadFile}
+                />
+              </Tooltip>
+              <Tooltip content="Remove all uploaded content">
+                <Trash2
+                  size={24}
+                  className="cursor-pointer hover:text-red-500 transition-colors"
+                  onClick={handleRemoveContent}
                 />
               </Tooltip>
             </div>
