@@ -76,7 +76,7 @@ const getLatestHeadings = async (beforeId: number): Promise<DbFile[]> => {
 marked.use(
   markedKatex({
     throwOnError: false,
-    output: "html",
+    output: "html"
   })
 );
 
@@ -532,20 +532,51 @@ export default function Index() {
       annotationEl.innerHTML = '';
     }
 
+    let accumulatedText = '';
     const summary = await generateThreadSummary(
       db,
       statusDb,
       currentId,
       (status: string) => setLLMStatus(status),
       (error: string) => setLLMError(error),
-      (partial: string) => {
+      async (partial: string) => {
+        // Accumulate the partial text
+        accumulatedText += partial;
+
+        // Render markdown in real-time
         const annotation = document.getElementById('annotation');
         if (annotation) {
-          annotation.innerHTML += partial;
+          try {
+            // Check if there are unclosed LaTeX delimiters
+            // Count $ and $$ occurrences to detect incomplete formulas
+            const singleDollarCount = (accumulatedText.match(/(?<!\$)\$(?!\$)/g) || []).length;
+            const doubleDollarCount = (accumulatedText.match(/\$\$/g) || []).length;
+
+            // If we have incomplete LaTeX (odd number of delimiters),
+            // temporarily close them for rendering
+            let textToRender = accumulatedText;
+            if (singleDollarCount % 2 !== 0) {
+              // Add a temporary closing $ at the end
+              textToRender = accumulatedText + '$';
+            }
+            if (doubleDollarCount % 2 !== 0) {
+              // Add a temporary closing $$ at the end
+              textToRender = accumulatedText + '$$';
+            }
+
+            let markedContent = await marked(textToRender, { breaks: true });
+            markedContent = formatMarkedContent(markedContent);
+            annotation.innerHTML = markedContent;
+          } catch (e) {
+            // If markdown parsing fails, just show raw text
+            annotation.innerHTML = accumulatedText;
+          }
         }
       }
     );
     setIsProcessing(false);
+
+    // Final render to ensure everything is properly formatted
     if (summary) {
       console.log('Summary before marked:', summary);
       let markedSummary = await marked(summary, { breaks: true });

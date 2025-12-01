@@ -198,6 +198,29 @@ export async function generateThreadSummary(
         2. Follow this with an analysis explaining how the plot clue evolves, connects to prior plot, and contributes to the current content.
       - Ensure that connections to previous pages are direct and relevant. Do not introduce unrelated elements or fabricate connections that do not exist.
       - If applicable, highlight how past thread influence or shape the ideas on the current page.
+
+      IMPORTANT: Mathematical Formula Formatting Rules:
+      You MUST use proper LaTeX syntax for all mathematical expressions in your response.
+
+      Format Requirements:
+      1. Inline formulas: wrap with single $ signs (e.g., $x^2 + y^2 = z^2$)
+      2. Display formulas: wrap with double $$ signs (e.g., $$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$)
+
+      Common LaTeX Commands You Should Use:
+      - Subscripts: use underscore (e.g., $x_i$, $u_{r,t}$)
+      - Superscripts: use caret (e.g., $x^2$, $e^{\\sigma t}$)
+      - Fractions: use \\frac{numerator}{denominator} (e.g., $\\frac{a}{b}$)
+      - Greek letters: use backslash (e.g., $\\sigma$, $\\varepsilon$, $\\theta$)
+      - Summation: $\\sum_{i=1}^{n}$
+      - Integrals: $\\int_{a}^{b}$
+      - Square root: $\\sqrt{x}$
+
+      Examples:
+      - Inline: The variable $u_{r,t}$ represents the shock at time $t$.
+      - Display: $$r_t = \\bar{r} + \\varepsilon_{r,t}$$
+      - Complex: The cost function $\\frac{\\Phi_D}{2}(D_{t+1} - \\bar{D})^2$ includes adjustment costs.
+
+      CRITICAL: Always enclose mathematical expressions with $ or $$ delimiters. Never write formulas in plain text.
     `;
     // print the whole prompt for debugging
     console.log(`[Debug] Prompt length: ${prompt.length} chars\n${prompt}`);
