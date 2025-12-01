@@ -9,6 +9,8 @@ interface SettingsProps {
   initialProvider?: string;
   initialToken?: string;
   initialLanguage?: string;
+  initialTheme?: 'system' | 'light' | 'dark';
+  onThemeChange?: (theme: 'system' | 'light' | 'dark') => void;
   db: Dexie;
 }
 
@@ -25,10 +27,11 @@ const LANGUAGES = [
     { code: 'zh', name: '中文' },
 ];
 
-export default function Settings({ onSubmit, onClose, initialProvider = '', initialToken = '', initialLanguage = '中文', db }: SettingsProps) {
+export default function Settings({ onSubmit, onClose, initialProvider = '', initialToken = '', initialLanguage = '中文', initialTheme = 'system', onThemeChange, db }: SettingsProps) {
   const [provider, setProvider] = useState(initialProvider);
   const [token, setToken] = useState(initialToken);
   const [language, setLanguage] = useState(initialLanguage);
+  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(initialTheme);
   const [autoSummarizeOnPageTurn, setAutoSummarizeOnPageTurn] = useState(false);
 
   useEffect(() => {
@@ -115,6 +118,32 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
     setAutoSummarizeOnPageTurn(enabled);
   };
 
+  const handleThemeChange = async (newTheme: 'system' | 'light' | 'dark') => {
+    try {
+      const existing = await db.table('statusName')
+        .where('element').equals('theme')
+        .first();
+
+      if (existing) {
+        await db.table('statusName')
+          .where('element').equals('theme')
+          .modify({ value: newTheme });
+      } else {
+        await db.table('statusName').add({
+          element: 'theme',
+          value: newTheme,
+        });
+      }
+
+      setTheme(newTheme);
+      if (onThemeChange) {
+        onThemeChange(newTheme);
+      }
+    } catch (error) {
+      console.error('Error updating theme:', error);
+    }
+  };
+
   const handleRemoveDataAndConfiguration = async () => {
     if (confirm('Are you sure you want to remove all data and configuration? This will clear all uploaded content, settings, and API tokens. This action cannot be undone.')) {
       try {
@@ -133,26 +162,26 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center">
-      <div className="bg-gray-900 border border-gray-700 p-8 rounded-xl w-96 shadow-2xl transform transition-all relative">
+    <div className="fixed inset-0 bg-black/70 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center">
+      <div className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 p-8 rounded-xl w-96 shadow-2xl transform transition-all relative">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+          className="absolute top-4 right-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors"
           aria-label="Close"
         >
           <X size={24} />
         </button>
-        <h2 className="text-2xl font-bold mb-6 text-white">Settings</h2>
+        <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Settings</h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label className="block mb-2 text-gray-300">Provider</label>
+            <label className="block mb-2 text-gray-700 dark:text-gray-300">Provider</label>
             <select
               value={provider}
               onChange={(e) => {
                 setProvider(e.target.value);
                 setToken(''); // Clear token when provider changes
               }}
-              className="w-full p-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             >
               {LLMProviders.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
@@ -160,21 +189,21 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
             </select>
           </div>
           <div className="mb-4">
-            <label className="block mb-2 text-gray-300">API Token</label>
+            <label className="block mb-2 text-gray-700 dark:text-gray-300">API Token</label>
             <input
               type="text"
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              className="w-full p-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               placeholder="Enter your API token"
             />
           </div>
           <div className="mb-4">
-            <label className="block mb-2 text-gray-300">Language</label>
+            <label className="block mb-2 text-gray-700 dark:text-gray-300">Language</label>
             <select
               value={language}
               onChange={(e) => handleLanguageChange(e.target.value)}
-              className="w-full p-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             >
               {LANGUAGES.map((lang) => (
                 <option key={lang.code} value={lang.name}>
@@ -183,14 +212,26 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
               ))}
             </select>
           </div>
+          <div className="mb-4">
+            <label className="block mb-2 text-gray-700 dark:text-gray-300">Theme</label>
+            <select
+              value={theme}
+              onChange={(e) => handleThemeChange(e.target.value as 'system' | 'light' | 'dark')}
+              className="w-full p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            >
+              <option value="system">System (Auto)</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
           <div className="mb-6">
-            <label className="flex items-center justify-between mb-1 text-gray-300">
+            <label className="flex items-center justify-between mb-1 text-gray-700 dark:text-gray-300">
               <span>Auto summarize on page turn</span>
               <button
                 type="button"
                 onClick={() => handleAutoSummarizeChange(!autoSummarizeOnPageTurn)}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  autoSummarizeOnPageTurn ? 'bg-blue-600' : 'bg-gray-600'
+                  autoSummarizeOnPageTurn ? 'bg-blue-600' : 'bg-gray-400 dark:bg-gray-600'
                 }`}
               >
                 <span
@@ -200,7 +241,7 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
                 />
               </button>
             </label>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               Automatically generate a summary and fix grammar when you move to the previous or next page.
             </p>
           </div>
@@ -208,14 +249,14 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
           <button
             type="button"
             onClick={handleRemoveDataAndConfiguration}
-            className="w-full mb-3 bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition-all duration-200"
+            className="w-full mb-3 bg-red-600 dark:bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 dark:hover:bg-red-700 transition-all duration-200"
           >
             Remove data and configuration
           </button>
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-all duration-200"
+            className="w-full bg-blue-600 dark:bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 dark:disabled:hover:bg-blue-600 transition-all duration-200"
             disabled={!token}
           >
             Save

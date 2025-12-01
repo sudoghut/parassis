@@ -38,10 +38,10 @@ export const LLMStatus: React.FC<LLMStatusProps> = ({
   if (!isVisible) return null;
 
   return (
-    <div 
+    <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-4 right-4 p-4 bg-gray-800 text-white rounded-lg shadow-lg"
+      className="fixed bottom-4 right-4 p-4 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg shadow-lg border border-gray-300 dark:border-gray-700"
     >
       <div className="flex items-center">
         {isLoading && (
@@ -51,7 +51,7 @@ export const LLMStatus: React.FC<LLMStatusProps> = ({
         )}
         {status && <div className="mr-2">{status}</div>}
         {error && (
-          <div className="text-red-400" role="alert">
+          <div className="text-red-600 dark:text-red-400" role="alert">
             {error}
           </div>
         )}

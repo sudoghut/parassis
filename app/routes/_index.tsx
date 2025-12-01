@@ -130,6 +130,7 @@ export default function Index() {
   const [showHeadingsMenu, setShowHeadingsMenu] = useState(false);
   const [headings, setHeadings] = useState<DbFile[]>([]);
   const [autoSummarizeOnPageTurn, setAutoSummarizeOnPageTurn] = useState(false);
+  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system');
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Chat states
@@ -317,6 +318,37 @@ export default function Index() {
       }
     }
   };
+
+  // Apply theme to document
+  useEffect(() => {
+    const applyTheme = () => {
+      const root = document.documentElement;
+
+      if (theme === 'system') {
+        // Use system preference
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) {
+          root.classList.add('dark');
+        } else {
+          root.classList.remove('dark');
+        }
+      } else if (theme === 'dark') {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    };
+
+    applyTheme();
+
+    // Listen for system theme changes when using 'system' mode
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => applyTheme();
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, [theme]);
 
   // Handle clicks outside of menu
   useEffect(() => {
@@ -537,6 +569,27 @@ export default function Index() {
           await db.open();
           await statusDb.open();
         }
+      }
+
+      // Load theme setting (default: system)
+      try {
+        const themeRecord = await statusDb.table('statusName')
+          .where('element').equals('theme')
+          .first();
+
+        if (themeRecord?.value && ['system', 'light', 'dark'].includes(themeRecord.value)) {
+          setTheme(themeRecord.value as 'system' | 'light' | 'dark');
+        } else {
+          setTheme('system');
+          if (!themeRecord) {
+            await statusDb.table('statusName').put({
+              element: 'theme',
+              value: 'system',
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading theme setting:', error);
       }
 
       // Load autoSummarizeOnPageTurn setting (default: false)
@@ -777,24 +830,26 @@ export default function Index() {
   return (
     <>
       {showTokenInput && (
-        <Settings 
-          onSubmit={handleTokenSubmit} 
+        <Settings
+          onSubmit={handleTokenSubmit}
           onClose={() => setShowTokenInput(false)}
           initialProvider={tokenInfo.provider}
           initialToken={tokenInfo.token}
           initialLanguage={tokenInfo.language}
+          initialTheme={theme}
+          onThemeChange={setTheme}
           db={statusDb}
         />
       )}
-      <div className="flex min-h-screen justify-center mb-40">
+      <div className="flex min-h-screen justify-center mb-40 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
         <div className="flex flex-col w-[80%]">
           <div className="flex flex-row items-center p-4">
             <div className="flex items-center space-x-4">
-              <div className="text-2xl font-bold">Parassis Reader</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">Parassis Reader</div>
               <Tooltip content="Show document headings">
                 <Menu
                   size={24}
-                  className="cursor-pointer"
+                  className="cursor-pointer text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
                   onClick={() => {
                     setShowHeadingsMenu(!showHeadingsMenu);
                     if (!showHeadingsMenu) {
@@ -813,7 +868,7 @@ export default function Index() {
                     {headings.map((heading) => (
                       <div
                         key={heading.id}
-                        className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                        className="px-4 py-2 text-sm cursor-pointer text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                         style={{ paddingLeft: `${(heading.heading) * 1}rem` }}
                         onClick={() => heading.id !== undefined && handleHeadingClick(heading.id)}
                       >
@@ -826,26 +881,26 @@ export default function Index() {
               <Tooltip content="Upload a .txt or .md file">
                 <FileUp
                   size={24}
-                  className="cursor-pointer hover:text-blue-500 transition-colors"
+                  className="cursor-pointer text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
                   onClick={uploadFile}
                 />
               </Tooltip>
               <Tooltip content="Remove all uploaded content">
                 <Trash2
                   size={24}
-                  className="cursor-pointer hover:text-red-500 transition-colors"
+                  className="cursor-pointer text-gray-700 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                   onClick={handleRemoveContent}
                 />
               </Tooltip>
             </div>
           </div>
-          <div id="content" className="flex flex-col justify-center p-4 text-xl">
+          <div id="content" className="flex flex-col justify-center p-4 text-xl text-gray-900 dark:text-gray-100">
             Content
           </div>
           <div className="flex flex-row items-center justify-between p-4">
             <div className="flex space-x-4 justify-center items-center w-full">
               <div
-                className={`flex-1 py-2 px-4 text-center border border-gray-300 dark:border-gray-700 rounded-md ${
+                className={`flex-1 py-2 px-4 text-center border text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 ${
                   isProcessing
                     ? 'opacity-50 cursor-not-allowed'
                     : 'cursor-pointer'
@@ -855,7 +910,7 @@ export default function Index() {
                 &lt;&lt;&lt; Prev
               </div>
               <div
-                className={`flex-1 py-2 px-4 text-center border border-gray-300 dark:border-gray-700 rounded-md ${
+                className={`flex-1 py-2 px-4 text-center border text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 ${
                   isProcessing
                     ? 'opacity-50 cursor-not-allowed'
                     : 'cursor-pointer'
@@ -869,14 +924,14 @@ export default function Index() {
 
           <div className="flex flex-row items-center p-4">
             <div className="flex items-center space-x-4">
-              <div className="text-2xl font-bold">Assistant</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">Assistant</div>
               <Tooltip content={!hasValidToken ? "Please set API token in settings" : "Generate summary for current page"}>
                 <LayoutList
                   size={24}
                   className={`transition-colors ${
                     !hasValidToken || isProcessing || isChatProcessing
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'cursor-pointer hover:text-blue-500'
+                      ? 'opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-600'
+                      : 'cursor-pointer text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400'
                   }`}
                   onClick={!hasValidToken || isProcessing || isChatProcessing ? undefined : handleGenerateThreadSummary}
                 />
@@ -886,8 +941,8 @@ export default function Index() {
                   size={24}
                   className={`transition-colors ${
                     !hasValidToken || isProcessing || isChatProcessing
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'cursor-pointer hover:text-blue-500'
+                      ? 'opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-600'
+                      : 'cursor-pointer text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400'
                   }`}
                   onClick={!hasValidToken || isProcessing || isChatProcessing ? undefined : handleChatToggle}
                 />
@@ -895,7 +950,7 @@ export default function Index() {
               <Tooltip content="Open settings">
                 <SettingsIcon
                   size={24}
-                  className="cursor-pointer hover:text-blue-500 transition-colors"
+                  className="cursor-pointer text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
                   onClick={handleSettingsClick}
                 />
               </Tooltip>
@@ -905,7 +960,7 @@ export default function Index() {
           {/* Chat Window */}
           {showChat && (
             <div className="flex flex-col p-4 border border-gray-300 dark:border-gray-700 rounded-md mb-4 mx-4 bg-gray-50 dark:bg-gray-800">
-              <div className="text-lg font-bold mb-2">Chat with AI</div>
+              <div className="text-lg font-bold mb-2 text-gray-900 dark:text-white">Chat with AI</div>
               <div
                 id="chat-messages"
                 className="flex flex-col space-y-2 mb-4 max-h-96 overflow-y-auto p-2 bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-600"
@@ -966,7 +1021,7 @@ export default function Index() {
             </div>
           )}
 
-          <div id="annotation" className="flex flex-col justify-center p-4  text-xl">
+          <div id="annotation" className="flex flex-col justify-center p-4 text-xl text-gray-900 dark:text-gray-100">
 
           </div>
         </div>
