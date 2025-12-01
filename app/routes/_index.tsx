@@ -13,6 +13,7 @@ import markedKatex from "marked-katex-extension";
 import "katex/dist/katex.min.css";
 import Settings from '../components/Settings';
 import { LLMStatus } from '../components/LLMStatus';
+import Tooltip from '../components/Tooltip';
 import { checkLLMToken, saveLLMToken, getLLMToken } from '../utils/tokenManager';
 import { generateThreadSummary, chatWithAI } from '../utils/summarizer';
 
@@ -665,19 +666,20 @@ export default function Index() {
           <div className="flex flex-row items-center p-4">
             <div className="flex items-center space-x-4">
               <div className="text-2xl font-bold">Parassis Reader</div>
-              <Menu
-                size={24}
-                className="cursor-pointer"
-                onClick={() => {
-                  setShowHeadingsMenu(!showHeadingsMenu);
-                  if (!showHeadingsMenu) {
-                    loadHeadings();
-                  }
-                }}
-                aria-label="Show document headings"
-              />
+              <Tooltip content="Show document headings">
+                <Menu
+                  size={24}
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setShowHeadingsMenu(!showHeadingsMenu);
+                    if (!showHeadingsMenu) {
+                      loadHeadings();
+                    }
+                  }}
+                />
+              </Tooltip>
               {showHeadingsMenu && (
-                <div 
+                <div
                   ref={menuRef}
                   className="absolute z-50 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg ring-1 ring-black ring-opacity-5 border border-gray-200 dark:border-gray-700 max-h-[80vh] overflow-y-auto"
                   style={{ top: '50px', left: '100px' }}
@@ -696,12 +698,13 @@ export default function Index() {
                   </div>
                 </div>
               )}
-              <FileUp
-                size={24}
-                className="cursor-pointer"
-                onClick={uploadFile}
-                aria-label="Upload a .txt or .md file"
-              />
+              <Tooltip content="Upload a .txt or .md file">
+                <FileUp
+                  size={24}
+                  className="cursor-pointer"
+                  onClick={uploadFile}
+                />
+              </Tooltip>
             </div>
           </div>
           <div id="content" className="flex flex-col justify-center p-4 text-xl">
@@ -735,32 +738,35 @@ export default function Index() {
           <div className="flex flex-row items-center p-4">
             <div className="flex items-center space-x-4">
               <div className="text-2xl font-bold">Assistant</div>
-              <LayoutList
-                size={24}
-                className={`cursor-pointer hover:text-blue-500 transition-colors ${
-                  isProcessing || isChatProcessing
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
-                }`}
-                onClick={isProcessing || isChatProcessing ? undefined : handleGenerateThreadSummary}
-                aria-label="Generate summary for current page"
-              />
-              <MessageCircle
-                size={24}
-                className={`cursor-pointer hover:text-blue-500 transition-colors ${
-                  isProcessing || isChatProcessing
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
-                }`}
-                onClick={isProcessing || isChatProcessing ? undefined : handleChatToggle}
-                aria-label="Open or close chat with AI"
-              />
-              <SettingsIcon
-                size={24}
-                className="cursor-pointer hover:text-blue-500 transition-colors"
-                onClick={handleSettingsClick}
-                aria-label="Open settings"
-              />
+              <Tooltip content="Generate summary for current page">
+                <LayoutList
+                  size={24}
+                  className={`cursor-pointer hover:text-blue-500 transition-colors ${
+                    isProcessing || isChatProcessing
+                      ? 'opacity-50 cursor-not-allowed'
+                      : ''
+                  }`}
+                  onClick={isProcessing || isChatProcessing ? undefined : handleGenerateThreadSummary}
+                />
+              </Tooltip>
+              <Tooltip content="Open or close chat with AI">
+                <MessageCircle
+                  size={24}
+                  className={`cursor-pointer hover:text-blue-500 transition-colors ${
+                    isProcessing || isChatProcessing
+                      ? 'opacity-50 cursor-not-allowed'
+                      : ''
+                  }`}
+                  onClick={isProcessing || isChatProcessing ? undefined : handleChatToggle}
+                />
+              </Tooltip>
+              <Tooltip content="Open settings">
+                <SettingsIcon
+                  size={24}
+                  className="cursor-pointer hover:text-blue-500 transition-colors"
+                  onClick={handleSettingsClick}
+                />
+              </Tooltip>
             </div>
           </div>
 
