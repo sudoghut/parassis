@@ -209,6 +209,86 @@ export async function generateThreadSummary(
   }
 }
 
+export async function chatWithAI(
+  db: Dexie,
+  messages: Array<{role: 'user' | 'assistant' | 'system', content: string}>,
+  onStatus: (status: string) => void,
+  onError: (error: string) => void,
+  onPartialResponse: (text: string) => void
+): Promise<string> {
+  try {
+    onStatus('Getting LLM token...');
+    const tokenInfo = await getLLMToken(db);
+    if (!tokenInfo.token) {
+      onError('No LLM token found');
+      return '';
+    }
+
+    const provider = tokenInfo.provider as LLMProvider;
+    const config = LLM_CONFIGS[provider];
+
+    if (!config) {
+      throw new Error(`Unsupported LLM provider: ${provider}`);
+    }
+
+    onStatus('Sending message to AI...');
+
+    const response = await fetch(config.endpoint, {
+      method: 'POST',
+      headers: config.headers(tokenInfo.token),
+      body: JSON.stringify({
+        ...config.formatRequest(''), // Get base structure
+        messages: messages
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`LLM API call failed: ${response.status} ${response.statusText}\n${errorData}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    let fullText = '';
+    let chunkCount = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = new TextDecoder().decode(value);
+      chunkCount++;
+      onStatus(`Processing response chunk ${chunkCount}...`);
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const jsonStr = line.slice(6);
+          if (jsonStr === '[DONE]') continue;
+
+          try {
+            const jsonData = JSON.parse(jsonStr);
+            let content = config.extractResponse(jsonData);
+            if (content) {
+              fullText += content;
+              onPartialResponse(content);
+            }
+          } catch (e) {
+            console.warn('Failed to parse JSON:', e);
+          }
+        }
+      }
+    }
+
+    onStatus('Chat response complete');
+    return fullText;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    onError(`Chat Error: ${errorMessage}`);
+    throw error;
+  }
+}
+
 async function callLLMAPI(
   tokenInfo: { provider: string, token: string },
   prompt: string,

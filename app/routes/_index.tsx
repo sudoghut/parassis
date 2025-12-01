@@ -5,6 +5,7 @@ import {
   FileUp,
   LayoutList,
   Settings as SettingsIcon,
+  MessageCircle,
 } from "lucide-react";
 import Dexie from "dexie";
 import { marked } from "marked";
@@ -13,7 +14,7 @@ import "katex/dist/katex.min.css";
 import Settings from '../components/Settings';
 import { LLMStatus } from '../components/LLMStatus';
 import { checkLLMToken, saveLLMToken, getLLMToken } from '../utils/tokenManager';
-import { generateThreadSummary } from '../utils/summarizer';
+import { generateThreadSummary, chatWithAI } from '../utils/summarizer';
 
 export const meta: MetaFunction = () => {
   return [
@@ -128,6 +129,12 @@ export default function Index() {
   const [autoSummarizeOnPageTurn, setAutoSummarizeOnPageTurn] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Chat states
+  const [showChat, setShowChat] = useState(false);
+  const [chatHistory, setChatHistory] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatProcessing, setIsChatProcessing] = useState(false);
+
   const formatMarkedContent = (markedContent: string): string => {
     let formatted = markedContent;
     formatted = formatted.replace(/<\/ul>/g, '</ul><br />');
@@ -163,6 +170,9 @@ export default function Index() {
       if (annotationEl) {
         annotationEl.innerHTML = '';
       }
+
+      // Clear chat history when navigating
+      setChatHistory([]);
 
       if (autoSummarizeOnPageTurn) {
         setIsProcessing(true);
@@ -220,6 +230,9 @@ export default function Index() {
         annotationEl.innerHTML = '';
       }
 
+      // Clear chat history when navigating
+      setChatHistory([]);
+
       if (autoSummarizeOnPageTurn) {
         setIsProcessing(true);
         const summary = await generateThreadSummary(
@@ -259,6 +272,14 @@ export default function Index() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Auto-scroll chat window to bottom when new messages arrive
+  useEffect(() => {
+    const chatWindowContent = document.getElementById('chat-messages');
+    if (chatWindowContent && showChat) {
+      chatWindowContent.scrollTop = chatWindowContent.scrollHeight;
+    }
+  }, [chatHistory, showChat]);
 
   // Load all headings when menu is opened
   const loadHeadings = async () => {
@@ -538,6 +559,95 @@ export default function Index() {
     }
   };
 
+  const handleChatSubmit = async () => {
+    if (!chatInput.trim() || isChatProcessing) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput('');
+
+    // Add user message to chat history
+    const newHistory = [...chatHistory, { role: 'user' as const, content: userMessage }];
+    setChatHistory(newHistory);
+
+    setIsChatProcessing(true);
+    setIsProcessing(true);
+
+    // Add a temporary empty assistant message to chat history for streaming
+    const streamingHistory = [...newHistory, { role: 'assistant' as const, content: '' }];
+    setChatHistory(streamingHistory);
+
+    try {
+      // Get current page content as context
+      const currentStatus = await statusDb.table('statusName')
+        .where('element').equals('currentPage')
+        .first();
+
+      let currentPageContent = '';
+      if (currentStatus) {
+        const currentId = parseInt(currentStatus.value);
+        const currentContent = await db.table('files')
+          .where('id').equals(currentId)
+          .first();
+
+        if (currentContent) {
+          // Get headings for context
+          const latestHeadings = await getLatestHeadings(currentId);
+          const headingText = latestHeadings.map(h => {
+            const cleanHeading = h.content.replace(/^#+\s+/, '');
+            return `${'#'.repeat(h.heading)} ${cleanHeading}`;
+          }).join('\n');
+
+          currentPageContent = headingText ? `${headingText}\n\n${currentContent.content}` : currentContent.content;
+        }
+      }
+
+      // Prepare messages with current page content as system context
+      const systemPrompt = currentPageContent
+        ? `You are a helpful AI assistant. Answer questions based on the conversation history and the following context from the current page:\n\n${currentPageContent}\n\nUse this context to provide relevant and accurate answers.`
+        : 'You are a helpful AI assistant. Answer questions based on the conversation history.';
+
+      const messages = [
+        { role: 'system' as const, content: systemPrompt },
+        ...newHistory
+      ];
+
+      let assistantResponse = '';
+
+      await chatWithAI(
+        statusDb,
+        messages,
+        (status: string) => setLLMStatus(status),
+        (error: string) => setLLMError(error),
+        async (partial: string) => {
+          assistantResponse += partial;
+          // Update the last message in chat history with streaming content
+          setChatHistory([...newHistory, { role: 'assistant' as const, content: assistantResponse }]);
+
+          // Scroll to bottom
+          const chatWindowContent = document.getElementById('chat-messages');
+          if (chatWindowContent) {
+            chatWindowContent.scrollTop = chatWindowContent.scrollHeight;
+          }
+        }
+      );
+
+      // Final update with complete response
+      setChatHistory([...newHistory, { role: 'assistant' as const, content: assistantResponse }]);
+    } catch (error) {
+      console.error('Chat error:', error);
+      setLLMError('Failed to get chat response');
+      // Remove the empty assistant message on error
+      setChatHistory(newHistory);
+    } finally {
+      setIsChatProcessing(false);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleChatToggle = () => {
+    setShowChat(!showChat);
+  };
+
   return (
     <>
       {showTokenInput && (
@@ -621,18 +731,96 @@ export default function Index() {
               <div className="text-2xl font-bold">Assistant</div>
               <LayoutList
                 size={24}
-                className="cursor-pointer hover:text-blue-500 transition-colors"
-                onClick={handleGenerateThreadSummary}
+                className={`cursor-pointer hover:text-blue-500 transition-colors ${
+                  isProcessing || isChatProcessing
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                }`}
+                onClick={isProcessing || isChatProcessing ? undefined : handleGenerateThreadSummary}
               />
-              <SettingsIcon 
-                size={24} 
+              <MessageCircle
+                size={24}
+                className={`cursor-pointer hover:text-blue-500 transition-colors ${
+                  isProcessing || isChatProcessing
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                }`}
+                onClick={isProcessing || isChatProcessing ? undefined : handleChatToggle}
+              />
+              <SettingsIcon
+                size={24}
                 className="cursor-pointer hover:text-blue-500 transition-colors"
                 onClick={handleSettingsClick}
               />
             </div>
           </div>
+
+          {/* Chat Window */}
+          {showChat && (
+            <div className="flex flex-col p-4 border border-gray-300 dark:border-gray-700 rounded-md mb-4 mx-4 bg-gray-50 dark:bg-gray-800">
+              <div className="text-lg font-bold mb-2">Chat with AI</div>
+              <div
+                id="chat-messages"
+                className="flex flex-col space-y-2 mb-4 max-h-96 overflow-y-auto p-2 bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-600"
+              >
+                {chatHistory.map((msg, idx) => {
+                  // Render markdown for messages
+                  let renderedContent = msg.content;
+                  try {
+                    renderedContent = marked(msg.content, { breaks: true }) as string;
+                  } catch (e) {
+                    console.error('Error rendering markdown:', e);
+                  }
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`mb-2 ${
+                        msg.role === 'user'
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-blue-600 dark:text-blue-400'
+                      }`}
+                    >
+                      <strong>{msg.role === 'user' ? 'You:' : 'AI:'}</strong>
+                      <span
+                        className="inline-block ml-2"
+                        dangerouslySetInnerHTML={{ __html: renderedContent }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !isChatProcessing) {
+                      handleChatSubmit();
+                    }
+                  }}
+                  placeholder="Type your message..."
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-black dark:text-white"
+                  disabled={isChatProcessing}
+                />
+                <button
+                  onClick={handleChatSubmit}
+                  disabled={isChatProcessing || !chatInput.trim()}
+                  className={`px-4 py-2 rounded-md ${
+                    isChatProcessing || !chatInput.trim()
+                      ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
+                      : 'bg-blue-500 hover:bg-blue-600 text-white cursor-pointer'
+                  }`}
+                >
+                  {isChatProcessing ? 'Sending...' : 'Send'}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div id="annotation" className="flex flex-col justify-center p-4  text-xl">
-            
+
           </div>
         </div>
       </div>
