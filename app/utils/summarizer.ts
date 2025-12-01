@@ -189,15 +189,15 @@ export async function generateThreadSummary(
 
       ${summary}
 
-      Analyze the plot clues in the current content by leveraging relevant references from the previous pages.  
+      Analyze the plot clues in the current content by leveraging relevant references from the previous pages.
 
       - Summarize the current content in the selected language. The language is ${userLanguage}.
-      - Identify the plot clues that appear in both the current content and previous pages.  
-      - Present the output in an itemized format:  
-        1. For each plot clue, provide a single sentence summarizing its relevance.  
-        2. Follow this with an analysis explaining how the plot clue evolves, connects to prior plot, and contributes to the current content.  
-      - Ensure that connections to previous pages are direct and relevant. Do not introduce unrelated elements or fabricate connections that do not exist.  
-      - If applicable, highlight how past thread influence or shape the ideas on the current page. 
+      - Identify the plot clues that appear in both the current content and previous pages.
+      - Present the output in an itemized format:
+        1. For each plot clue, provide a single sentence summarizing its relevance.
+        2. Follow this with an analysis explaining how the plot clue evolves, connects to prior plot, and contributes to the current content.
+      - Ensure that connections to previous pages are direct and relevant. Do not introduce unrelated elements or fabricate connections that do not exist.
+      - If applicable, highlight how past thread influence or shape the ideas on the current page.
     `;
     // print the whole prompt for debugging
     console.log(`[Debug] Prompt length: ${prompt.length} chars\n${prompt}`);
@@ -210,7 +210,7 @@ export async function generateThreadSummary(
 }
 
 async function callLLMAPI(
-  tokenInfo: { provider: string, token: string }, 
+  tokenInfo: { provider: string, token: string },
   prompt: string,
   onStatus: (status: string) => void,
   onError: (error: string) => void,

@@ -78,13 +78,6 @@ marked.use(
   })
 );
 
-marked.use(
-  markedKatex({
-    throwOnError: false,
-    output: "html",
-  })
-);
-
 const displayContent = async (content: string, headings: DbFile[]) => {
   const headingText = headings.map(h => {
     // Remove markdown heading symbols and trim
@@ -143,12 +136,13 @@ export default function Index() {
   };
 
   const handlePrevContent = async () => {
+    console.log('[Debug] handlePrevContent: autoSummarizeOnPageTurn =', autoSummarizeOnPageTurn);
     const currentStatus = await statusDb.table('statusName')
       .where('element').equals('currentPage')
       .first();
-    
+
     if (!currentStatus) return;
-    
+
     const currentId = parseInt(currentStatus.value);
     const prevContent = await db.table('files')
       .where('heading').equals(0)
@@ -160,15 +154,18 @@ export default function Index() {
       await statusDb.table('statusName')
       .where('element').equals('currentPage')
         .modify({ value: prevContent.id.toString() });
-      
+
       const latestHeadings = await getLatestHeadings(prevContent.id);
       await displayContent(prevContent.content, latestHeadings);
 
+      // Always clear annotation when navigating
+      const annotationEl = document.getElementById('annotation');
+      if (annotationEl) {
+        annotationEl.innerHTML = '';
+      }
+
       if (autoSummarizeOnPageTurn) {
         setIsProcessing(true);
-        // Clear annotation before generating
-        document.getElementById('annotation')!.innerHTML = '';
-        // Generate and display thread summary
         const summary = await generateThreadSummary(
           db,
           statusDb,
@@ -186,19 +183,23 @@ export default function Index() {
         if (summary) {
           let markedSummary = await marked(summary, { breaks: true });
           markedSummary = formatMarkedContent(markedSummary);
-          document.getElementById('annotation')!.innerHTML = markedSummary;
+          const annotation = document.getElementById('annotation');
+          if (annotation) {
+            annotation.innerHTML = markedSummary;
+          }
         }
       }
     }
   };
 
   const handleNextContent = async () => {
+      console.log('[Debug] handleNextContent: autoSummarizeOnPageTurn =', autoSummarizeOnPageTurn);
       const currentStatus = await statusDb.table('statusName')
       .where('element').equals('currentPage')
       .first();
-    
+
     if (!currentStatus) return;
-    
+
     const currentId = parseInt(currentStatus.value);
     const nextContent = await db.table('files')
       .where('heading').equals(0)
@@ -209,15 +210,18 @@ export default function Index() {
       await statusDb.table('statusName')
         .where('element').equals('currentPage')
         .modify({ value: nextContent.id.toString() });
-      
+
       const latestHeadings = await getLatestHeadings(nextContent.id);
       await displayContent(nextContent.content, latestHeadings);
 
+      // Always clear annotation when navigating
+      const annotationEl = document.getElementById('annotation');
+      if (annotationEl) {
+        annotationEl.innerHTML = '';
+      }
+
       if (autoSummarizeOnPageTurn) {
         setIsProcessing(true);
-        // Clear annotation before generating
-        document.getElementById('annotation')!.innerHTML = '';
-        // Generate and display thread summary
         const summary = await generateThreadSummary(
           db,
           statusDb,
@@ -235,7 +239,10 @@ export default function Index() {
         if (summary) {
           let markedSummary = await marked(summary, { breaks: true });
           markedSummary = formatMarkedContent(markedSummary);
-          document.getElementById('annotation')!.innerHTML = markedSummary;
+          const annotation = document.getElementById('annotation');
+          if (annotation) {
+            annotation.innerHTML = markedSummary;
+          }
         }
       }
     }
@@ -427,11 +434,14 @@ export default function Index() {
         const autoRecord = await statusDb.table('statusName')
           .where('element').equals('autoSummarizeOnPageTurn')
           .first();
+        console.log('[Debug] Index init: autoSummarizeOnPageTurn record =', autoRecord);
 
         if (autoRecord?.value === 'false') {
           setAutoSummarizeOnPageTurn(false);
+          console.log('[Debug] Index init: autoSummarizeOnPageTurn state set to', false);
         } else {
           setAutoSummarizeOnPageTurn(true);
+          console.log('[Debug] Index init: autoSummarizeOnPageTurn state set to', true);
           if (!autoRecord) {
             await statusDb.table('statusName').put({
               element: 'autoSummarizeOnPageTurn',
@@ -459,6 +469,24 @@ export default function Index() {
     await saveLLMToken(statusDb, provider, token, language);
     setShowTokenInput(false);
     setTokenInfo({ provider, token, language });
+
+    // Reload autoSummarizeOnPageTurn from DB after settings are saved
+    try {
+      const autoRecord = await statusDb.table('statusName')
+        .where('element').equals('autoSummarizeOnPageTurn')
+        .first();
+      console.log('[Debug] After Settings save: autoSummarizeOnPageTurn record =', autoRecord);
+
+      if (autoRecord?.value === 'false') {
+        setAutoSummarizeOnPageTurn(false);
+        console.log('[Debug] After Settings save: autoSummarizeOnPageTurn state set to', false);
+      } else {
+        setAutoSummarizeOnPageTurn(true);
+        console.log('[Debug] After Settings save: autoSummarizeOnPageTurn state set to', true);
+      }
+    } catch (error) {
+      console.error('Error reloading autoSummarizeOnPageTurn after settings save:', error);
+    }
   };
 
   const handleSettingsClick = async () => {
@@ -471,13 +499,17 @@ export default function Index() {
     const currentStatus = await statusDb.table('statusName')
       .where('element').equals('currentPage')
       .first();
-    
+
     if (!currentStatus) return;
-    
+
     const currentId = parseInt(currentStatus.value);
+
     setIsProcessing(true);
-    document.getElementById('annotation')!.innerHTML = '';
-    
+    const annotationEl = document.getElementById('annotation');
+    if (annotationEl) {
+      annotationEl.innerHTML = '';
+    }
+
     const summary = await generateThreadSummary(
       db,
       statusDb,
@@ -497,7 +529,10 @@ export default function Index() {
       let markedSummary = await marked(summary, { breaks: true });
       markedSummary = formatMarkedContent(markedSummary);
       console.log('Summary:', markedSummary);
-      document.getElementById('annotation')!.innerHTML = markedSummary;
+      const annotation = document.getElementById('annotation');
+      if (annotation) {
+        annotation.innerHTML = markedSummary;
+      }
     } else {
       console.log('No summary generated');
     }
@@ -551,7 +586,6 @@ export default function Index() {
                 </div>
               )}
               <FileUp size={24} className="cursor-pointer" onClick={uploadFile} />
-              {/* <Save size={24} className="cursor-pointer" onClick={() => console.log('Save clicked')} /> */}
             </div>
           </div>
           <div id="content" className="flex flex-col justify-center p-4 text-xl">
@@ -559,32 +593,37 @@ export default function Index() {
           </div>
           <div className="flex flex-row items-center justify-between p-4">
             <div className="flex space-x-4 justify-center items-center w-full">
-              <div 
-                className="flex-1 py-2 px-4 text-center cursor-pointer border border-gray-300 dark:border-gray-700 rounded-md"
-                onClick={handlePrevContent}
+              <div
+                className={`flex-1 py-2 px-4 text-center border border-gray-300 dark:border-gray-700 rounded-md ${
+                  isProcessing
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'cursor-pointer'
+                }`}
+                onClick={isProcessing ? undefined : handlePrevContent}
               >
                 &lt;&lt;&lt; Prev
               </div>
-              <div 
-                className="flex-1 py-2 px-4 text-center cursor-pointer border border-gray-300 dark:border-gray-700 rounded-md"
-                onClick={handleNextContent}
+              <div
+                className={`flex-1 py-2 px-4 text-center border border-gray-300 dark:border-gray-700 rounded-md ${
+                  isProcessing
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'cursor-pointer'
+                }`}
+                onClick={isProcessing ? undefined : handleNextContent}
               >
                 Next &gt;&gt;&gt;
               </div>
             </div>
           </div>
 
-
           <div className="flex flex-row items-center p-4">
             <div className="flex items-center space-x-4">
               <div className="text-2xl font-bold">Assistant</div>
-              <LayoutList 
-                size={24} 
+              <LayoutList
+                size={24}
                 className="cursor-pointer hover:text-blue-500 transition-colors"
                 onClick={handleGenerateThreadSummary}
               />
-              {/* <Wand size={24} />
-              <MessageCircle size={24} /> */}
               <SettingsIcon 
                 size={24} 
                 className="cursor-pointer hover:text-blue-500 transition-colors"
@@ -593,7 +632,7 @@ export default function Index() {
             </div>
           </div>
           <div id="annotation" className="flex flex-col justify-center p-4  text-xl">
-            Annotation content
+            
           </div>
         </div>
       </div>
