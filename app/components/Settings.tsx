@@ -29,22 +29,42 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
   const [provider, setProvider] = useState(initialProvider);
   const [token, setToken] = useState(initialToken);
   const [language, setLanguage] = useState(initialLanguage);
+  const [autoSummarizeOnPageTurn, setAutoSummarizeOnPageTurn] = useState(true);
 
   useEffect(() => {
-    // Load initial language setting
-    const loadLanguage = async () => {
+    // Load initial language and auto summarize setting
+    const loadSettings = async () => {
       try {
-        const record = await db.table('statusName')
+        const langRecord = await db.table('statusName')
           .where('element').equals('language')
           .first();
-        if (record?.value) {
-          setLanguage(record.value);
+        if (langRecord?.value) {
+          setLanguage(langRecord.value);
+        }
+
+        const autoRecord = await db.table('statusName')
+          .where('element').equals('autoSummarizeOnPageTurn')
+          .first();
+
+        if (autoRecord?.value === 'true') {
+          setAutoSummarizeOnPageTurn(true);
+        } else if (autoRecord?.value === 'false') {
+          setAutoSummarizeOnPageTurn(false);
+        } else {
+          // Default to true and persist if missing/invalid
+          setAutoSummarizeOnPageTurn(true);
+          if (!autoRecord) {
+            await db.table('statusName').put({
+              element: 'autoSummarizeOnPageTurn',
+              value: 'true',
+            });
+          }
         }
       } catch (error) {
-        console.error('Error loading language setting:', error);
+        console.error('Error loading settings:', error);
       }
     };
-    loadLanguage();
+    loadSettings();
   }, [db]);
 
   const handleLanguageChange = async (newLanguage: string) => {
@@ -70,6 +90,29 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(provider, token, language);
+  };
+
+  const handleAutoSummarizeChange = async (enabled: boolean) => {
+    const value = enabled ? 'true' : 'false';
+    try {
+      const existing = await db.table('statusName')
+        .where('element').equals('autoSummarizeOnPageTurn')
+        .first();
+
+      if (existing) {
+        await db.table('statusName')
+          .where('element').equals('autoSummarizeOnPageTurn')
+          .modify({ value });
+      } else {
+        await db.table('statusName').add({
+          element: 'autoSummarizeOnPageTurn',
+          value,
+        });
+      }
+    } catch (error) {
+      console.error('Error updating autoSummarizeOnPageTurn:', error);
+    }
+    setAutoSummarizeOnPageTurn(enabled);
   };
 
   return (
@@ -109,7 +152,7 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
               placeholder="Enter your API token"
             />
           </div>
-          <div className="mb-6">
+          <div className="mb-4">
             <label className="block mb-2 text-gray-300">Language</label>
             <select
               value={language}
@@ -122,6 +165,27 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
                 </option>
               ))}
             </select>
+          </div>
+          <div className="mb-6">
+            <label className="flex items-center justify-between mb-1 text-gray-300">
+              <span>Auto summarize on page turn</span>
+              <button
+                type="button"
+                onClick={() => handleAutoSummarizeChange(!autoSummarizeOnPageTurn)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  autoSummarizeOnPageTurn ? 'bg-blue-600' : 'bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    autoSummarizeOnPageTurn ? 'translate-x-5' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </label>
+            <p className="text-xs text-gray-400">
+              Automatically generate a summary and fix grammar when you move to the previous or next page.
+            </p>
           </div>
           <button
             type="submit"

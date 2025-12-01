@@ -116,6 +116,7 @@ export default function Index() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showHeadingsMenu, setShowHeadingsMenu] = useState(false);
   const [headings, setHeadings] = useState<DbFile[]>([]);
+  const [autoSummarizeOnPageTurn, setAutoSummarizeOnPageTurn] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const formatMarkedContent = (markedContent: string): string => {
@@ -147,28 +148,30 @@ export default function Index() {
       const latestHeadings = await getLatestHeadings(prevContent.id);
       await displayContent(prevContent.content, latestHeadings);
 
-      setIsProcessing(true);
-      // Clear annotation before generating
-      document.getElementById('annotation')!.innerHTML = '';
-      // Generate and display thread summary
-      const summary = await generateThreadSummary(
-        db,
-        statusDb,
-        prevContent.id,
-        (status: string) => setLLMStatus(status),
-        (error: string) => setLLMError(error),
-        (partial: string) => {
-          const annotation = document.getElementById('annotation');
-          if (annotation) {
-            annotation.innerHTML += partial;
+      if (autoSummarizeOnPageTurn) {
+        setIsProcessing(true);
+        // Clear annotation before generating
+        document.getElementById('annotation')!.innerHTML = '';
+        // Generate and display thread summary
+        const summary = await generateThreadSummary(
+          db,
+          statusDb,
+          prevContent.id,
+          (status: string) => setLLMStatus(status),
+          (error: string) => setLLMError(error),
+          (partial: string) => {
+            const annotation = document.getElementById('annotation');
+            if (annotation) {
+              annotation.innerHTML += partial;
+            }
           }
+        );
+        setIsProcessing(false);
+        if (summary) {
+          let markedSummary = await marked(summary, { breaks: true });
+          markedSummary = formatMarkedContent(markedSummary);
+          document.getElementById('annotation')!.innerHTML = markedSummary;
         }
-      );
-      setIsProcessing(false);
-      if (summary) {
-        let markedSummary = await marked(summary, { breaks: true });
-        markedSummary = formatMarkedContent(markedSummary);
-        document.getElementById('annotation')!.innerHTML = markedSummary;
       }
     }
   };
@@ -194,28 +197,30 @@ export default function Index() {
       const latestHeadings = await getLatestHeadings(nextContent.id);
       await displayContent(nextContent.content, latestHeadings);
 
-      setIsProcessing(true);
-      // Clear annotation before generating
-      document.getElementById('annotation')!.innerHTML = '';
-      // Generate and display thread summary
-      const summary = await generateThreadSummary(
-        db,
-        statusDb,
-        nextContent.id,
-        (status: string) => setLLMStatus(status),
-        (error: string) => setLLMError(error),
-        (partial: string) => {
-          const annotation = document.getElementById('annotation');
-          if (annotation) {
-            annotation.innerHTML += partial;
+      if (autoSummarizeOnPageTurn) {
+        setIsProcessing(true);
+        // Clear annotation before generating
+        document.getElementById('annotation')!.innerHTML = '';
+        // Generate and display thread summary
+        const summary = await generateThreadSummary(
+          db,
+          statusDb,
+          nextContent.id,
+          (status: string) => setLLMStatus(status),
+          (error: string) => setLLMError(error),
+          (partial: string) => {
+            const annotation = document.getElementById('annotation');
+            if (annotation) {
+              annotation.innerHTML += partial;
+            }
           }
+        );
+        setIsProcessing(false);
+        if (summary) {
+          let markedSummary = await marked(summary, { breaks: true });
+          markedSummary = formatMarkedContent(markedSummary);
+          document.getElementById('annotation')!.innerHTML = markedSummary;
         }
-      );
-      setIsProcessing(false);
-      if (summary) {
-        let markedSummary = await marked(summary, { breaks: true });
-        markedSummary = formatMarkedContent(markedSummary);
-        document.getElementById('annotation')!.innerHTML = markedSummary;
       }
     }
   };
@@ -400,6 +405,28 @@ export default function Index() {
           await statusDb.open();
         }
       }
+
+      // Load autoSummarizeOnPageTurn setting (default: true)
+      try {
+        const autoRecord = await statusDb.table('statusName')
+          .where('element').equals('autoSummarizeOnPageTurn')
+          .first();
+
+        if (autoRecord?.value === 'false') {
+          setAutoSummarizeOnPageTurn(false);
+        } else {
+          setAutoSummarizeOnPageTurn(true);
+          if (!autoRecord) {
+            await statusDb.table('statusName').put({
+              element: 'autoSummarizeOnPageTurn',
+              value: 'true',
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading autoSummarizeOnPageTurn setting:', error);
+      }
+
       const hasToken = await checkLLMToken(statusDb);
       if (!hasToken) {
         setShowTokenInput(true);
