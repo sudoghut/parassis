@@ -1,8 +1,7 @@
 export const LLMProviders = [
-  { id: 'openai', name: 'ChatGPT - 4o mini' },
-  { id: 'anthropic', name: 'Claude - 3.5 haiku' },
-  { id: 'deepseek', name: 'DeepSeek - v3' },
-  { id: 'volcengine', name: 'Volcengine - DS v3' }
+  { id: 'openai', name: 'ChatGPT - 5.1 mini' },
+  { id: 'anthropic', name: 'Claude - 4.5 haiku' },
+  { id: 'deepseek', name: 'DeepSeek - 3.2' }
 ] as const;
 
 export type LLMProvider = typeof LLMProviders[number]['id'];

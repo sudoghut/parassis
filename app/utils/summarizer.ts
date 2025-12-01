@@ -5,7 +5,7 @@ const MAX_CONTEXT_CHARS = 2000;
 const MAX_PREV_CONTENTS = 10;
 const MAX_SUMMARY_CHARS = 500;
 
-type LLMProvider = 'openai' | 'anthropic' | 'deepseek' | 'volcengine';
+type LLMProvider = 'openai' | 'anthropic' | 'deepseek';
 
 interface LLMConfig {
   endpoint: string;
@@ -15,28 +15,6 @@ interface LLMConfig {
 }
 
 const LLM_CONFIGS: Record<LLMProvider, LLMConfig> = {
-  volcengine: {
-    endpoint: '/volces-api/api/v3/chat/completions',
-    headers: (token) => ({
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    }),
-    formatRequest: (prompt) => ({
-      model: "deepseek-v3-241226",
-      messages: [
-        { role: "system", content: "You are an expert in analyzing plot cues from text" },
-        { role: "user", content: prompt }
-      ],
-      stream: true
-    }),
-    extractResponse: (data) => {
-      if (!data?.choices?.[0]?.delta?.content && data?.type === 'content_block_start') {
-        // Handle the new response format
-        return data.content_block?.text || '';
-      }
-      return data.choices?.[0]?.delta?.content || '';
-    }
-  },
   openai: {
     endpoint: 'https://api.openai.com/v1/chat/completions',
     headers: (token) => ({
@@ -44,7 +22,7 @@ const LLM_CONFIGS: Record<LLMProvider, LLMConfig> = {
       'Authorization': `Bearer ${token}`
     }),
     formatRequest: (prompt) => ({
-      model: "gpt-4o-mini",
+      model: "gpt-5.1-mini",
       messages: [{ role: "user", content: prompt }],
       stream: true
     }),
@@ -65,7 +43,7 @@ const LLM_CONFIGS: Record<LLMProvider, LLMConfig> = {
       'anthropic-dangerous-direct-browser-access': 'yes'
     }),
     formatRequest: (prompt) => ({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-4.5-haiku",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 8000,
       stream: true
