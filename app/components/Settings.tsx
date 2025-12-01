@@ -115,6 +115,33 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
     setAutoSummarizeOnPageTurn(enabled);
   };
 
+  const handleRemoveUploadedText = async () => {
+    try {
+      // Remove uploaded text: clear files table
+      try {
+        await db.table('files').clear();
+      } catch (error) {
+        console.error('Error clearing files table:', error);
+      }
+
+      // Remove currentPage from statusName
+      try {
+        await db.table('statusName')
+          .where('element')
+          .equals('currentPage')
+          .delete();
+      } catch (error) {
+        console.error('Error removing currentPage from statusName:', error);
+      }
+
+      alert('Uploaded text has been removed.');
+      window.location.reload();
+    } catch (error) {
+      console.error('Error removing uploaded text:', error);
+      alert('Failed to remove uploaded text.');
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center">
       <div className="bg-gray-900 border border-gray-700 p-8 rounded-xl w-96 shadow-2xl transform transition-all relative">
@@ -187,6 +214,15 @@ export default function Settings({ onSubmit, onClose, initialProvider = '', init
               Automatically generate a summary and fix grammar when you move to the previous or next page.
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={handleRemoveUploadedText}
+            className="w-full mb-3 bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition-all duration-200"
+          >
+            Remove uploaded text
+          </button>
+
           <button
             type="submit"
             className="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-all duration-200"
